@@ -50,3 +50,11 @@ colmap stereo_fusion \
 # python ${WORK_SPACE}/preprocess/colmap_bin2npy.py \
 # --project_path ${PROJECT_PATH} \
 # --save_dir ${ROOT_DIR}/${SEQUENCE}
+
+colmap poisson_mesher \
+    --input_path dense/fused.ply \
+    --output_path dense/meshed-poisson.ply
+
+colmap delaunay_mesher \
+    --input_path dense \
+    --output_path dense/meshed-delaunay.ply

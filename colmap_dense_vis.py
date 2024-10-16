@@ -1,16 +1,10 @@
-import open3d as o3d
-from open3d import visualization
 import numpy as np
-import json
 import os
 import numpy as np
-import shutil
-import pyrender
 import pyvista as pv
 import vtk
 import math
 import numpy as np
-import matplotlib.pyplot as plt
 from PIL import Image
 
 def trans_to_matrix(trans):
@@ -52,7 +46,7 @@ def load_cam_to_pose(cam_to_pose_fn):
 if __name__ == '__main__':
 
     DRIVE = '2013_05_28_drive_0009_sync'
-    root_dir = 'KITTI-pre'
+    root_dir = './../KITTI-pre'
 
     data_dir = f'{root_dir}/data_2d_raw/{DRIVE}'
 
@@ -61,7 +55,7 @@ if __name__ == '__main__':
     for idx in range(len(start_end_list)):
         seq_name = f'seq_{idx+1}'
         print(f'Processing sequence: {seq_name}.')
-        os.makedirs(f"colmap_dense_vis/{seq_name}", exist_ok=True)
+        os.makedirs(f"colmap_meshed-delaunay_vis/{seq_name}", exist_ok=True)
         start = start_end_list[idx][0]
         end = start_end_list[idx][1]
         seq_save_dir = os.path.join(root_dir, seq_name)
@@ -96,13 +90,7 @@ if __name__ == '__main__':
             c2w_dict[f'00_{img_name}'] = c2w_00
             c2w_dict[f'01_{img_name}'] = c2w_01
         
-
-        # pcd = o3d.io.read_point_cloud("colmap_res/seq_1/dense/fused.ply")
-        # point_cloud = pyrender.Mesh.from_points(np.asarray(pcd.points))
-        
-        # # 创建场景
-        # scene = pyrender.Scene()
-        # scene.add(point_cloud)
+        # 创建场景
         
         for img_ins in img_names :
             # 相机外参
@@ -122,8 +110,15 @@ if __name__ == '__main__':
             #
             # load mesh or point cloud
             #
-            mesh = pv.read(f"colmap_res/{seq_name}/dense/fused.ply")
-            p.add_mesh(mesh, rgb=True)
+            # # point cloud
+            # mesh_color = pv.read(f"./../colmap_res/{seq_name}/dense/fused.ply")
+            # p.add_mesh(mesh, rgb=True)
+            
+            # mesh
+            mesh_color = pv.read(f"./../colmap_res/{seq_name}/dense/fused.ply")
+            mesh = pv.read(f"./../colmap_res/{seq_name}/dense/meshed-delaunay.ply") # meshed-delaunay meshed-poisson
+            p.add_mesh(mesh, show_edges=True, color='white')
+            p.add_mesh(mesh_color, rgb=True)
 
             # convert the principal point to window center (normalized coordinate system) and set it
             wcx = -2*(cx - float(W)/2) / W
@@ -163,7 +158,6 @@ if __name__ == '__main__':
             p.store_image = True  # last_image and last_image_depth
             p.close()
 
-
             # get screen image
             img = p.last_image
 
@@ -176,47 +170,5 @@ if __name__ == '__main__':
             img = Image.fromarray(img)
 
             # 保存图片
-            img.save(f"colmap_dense_vis/{seq_name}/{img_ins}_img.png")
+            img.save(f"colmap_meshed-delaunay_vis/{seq_name}/{img_ins}_img.png")
             
-            # sb pyrender
-            # camera = pyrender.IntrinsicsCamera(focalx, focaly, cx, cy)
-            # camera_pose = extrinsic
-            # scene.add(camera, pose=camera_pose)
-            
-            # # 添加光源
-            # light = pyrender.DirectionalLight(color=np.ones(3), intensity=2.0)
-            # scene.add(light, pose=camera_pose)
-
-            # # 创建渲染器
-            # r = pyrender.OffscreenRenderer(W, H)
-            # color, depth = r.render(scene)
-
-            # # 显示渲染结果
-            # import matplotlib.pyplot as plt
-
-            # plt.figure()
-            # plt.imshow(color)
-            # plt.axis('off')
-            # plt.show()
-            
-            
-            
-            
-            # sb open3d
-            # intrinsic = o3d.camera.PinholeCameraIntrinsic(width=W, height=H, fx=focal, fy=focal, cx=cx, cy=cy)
-
-            # param = o3d.camera.PinholeCameraParameters()
-            # param.extrinsic = extrinsic
-            # param.intrinsic = intrinsic
-
-            # vis = visualization.Visualizer()
-            # vis.create_window(window_name='pcd', width=W, height=H)
-            # ctr = vis.get_view_control()
-            # vis.add_geometry(pcd)
-            # ctr.convert_from_pinhole_camera_parameters(param)
-            # vis.run()
-            # # 保存图片
-            # vis.capture_depth_image(f"colmap_dense_vis/{img}_depth.png")
-            # vis.capture_screen_image(f"colmap_dense_vis/{img}_img.png")
-            # vis.destroy_window()
-        
