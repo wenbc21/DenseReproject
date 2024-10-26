@@ -1,17 +1,9 @@
+import open3d as o3d
 import numpy as np
 import os
-import pyvista as pv
-import vtk
-import math
-from PIL import Image
+import cv2
+from collections import Counter
 
-def trans_to_matrix(trans):
-    """ Convert a numpy.ndarray to a vtk.vtkMatrix4x4 """
-    matrix = vtk.vtkMatrix4x4()
-    for i in range(trans.shape[0]):
-        for j in range(trans.shape[1]):
-            matrix.SetElement(i, j, trans[i, j])
-    return matrix
 
 def load_intrinsics(intrinsics_fn):
     with open(intrinsics_fn, 'r') as f:
@@ -53,7 +45,7 @@ if __name__ == '__main__':
     for idx in range(len(start_end_list)):
         seq_name = f'seq_{idx+1}'
         print(f'Processing sequence: {seq_name}.')
-        os.makedirs(f"colmap_meshed-delaunay_vis/{seq_name}", exist_ok=True)
+        os.makedirs(f"colmap_dense_vis/pure_project/{seq_name}", exist_ok=True)
         start = start_end_list[idx][0]
         end = start_end_list[idx][1]
         seq_save_dir = os.path.join(root_dir, seq_name)
@@ -88,85 +80,66 @@ if __name__ == '__main__':
             c2w_dict[f'00_{img_name}'] = c2w_00
             c2w_dict[f'01_{img_name}'] = c2w_01
         
-        # 创建场景
+        pcd = o3d.io.read_point_cloud(f"./colmap_dense_vis/extruded_pcd/{seq_name}.ply")
+        point_cloud = np.asarray(pcd.points)
+        point_color = np.asarray(pcd.colors) * 255
+        print(point_cloud.shape, point_color.shape)
         
         for img_ins in img_names :
             # 相机外参
             extrinsic = c2w_dict[img_ins]
             extrinsic = np.linalg.inv(extrinsic) #c2w->w2c
-
+            
             # 相机内参
             W = 1408
             H = 376
             focal = P_rect_00[0][0]
             cx = P_rect_00[0][2]
             cy = P_rect_00[1][2]
-
-            # renderer
-            p = pv.Plotter(off_screen=True, window_size=[W,H])
-
-            #
-            # load mesh or point cloud
-            #
-            # # point cloud
-            # mesh_color = pv.read(f"./../colmap_res/{seq_name}/dense/fused.ply")
-            # p.add_mesh(mesh, rgb=True)
+            K = np.array([[focal, 0, cx],
+                        [0, focal, cy],
+                        [0, 0, 1]])
             
-            # mesh
-            mesh_color = pv.read(f"./../colmap_res/{seq_name}/dense/fused.ply")
-            mesh = pv.read(f"./../colmap_res/{seq_name}/dense/meshed-delaunay.ply") # meshed-delaunay meshed-poisson
-            p.add_mesh(mesh, show_edges=True, color='white')
-            p.add_mesh(mesh_color, rgb=True)
-
-            # convert the principal point to window center (normalized coordinate system) and set it
-            wcx = -2*(cx - float(W)/2) / W
-            wcy =  2*(cy - float(H)/2) / H
-            p.camera.SetWindowCenter(wcx, wcy)
-
-            # convert the focal length to view angle and set it
-            view_angle = 180 / math.pi * (2.0 * math.atan2(H/2.0, focal))
-            p.camera.SetViewAngle(view_angle)
-
-            # apply the transform to scene objects
-            p.camera.SetModelTransformMatrix(trans_to_matrix(extrinsic))
-
-            # the camera can stay at the origin because we are transforming the scene objects
-            p.camera.SetPosition(0, 0, 0)
-
-            # look in the +Z direction of the camera coordinate system
-            p.camera.SetFocalPoint(0, 0, 1)
-
-            # the camera Y axis points down
-            p.camera.SetViewUp(0,-1,0)
-
-
-            #
-            # near/far plane
-            #
-
-            # ensure the relevant range of depths are rendered
-            depth_min = 0.01
-            depth_max = 100
-            p.camera.SetClippingRange(depth_min, depth_max)
-            # depth_min, depth_max = p.camera.GetClippingRange()
-            p.renderer.ResetCameraClippingRange()
-
-            p.show()
-            p.render()
-            p.store_image = True  # last_image and last_image_depth
-            p.close()
-
-            # get screen image
-            img = p.last_image
-
-            # get depth
-            # img_depth = p.get_image_depth(fill_value=np.nan, reset_camera_clipping_range=False)
-
-            img = img.astype(np.uint8)  # 转换为 uint8 类型
-
-            # 将 NumPy 数组转换为图片
-            img = Image.fromarray(img)
-
-            # 保存图片
-            img.save(f"colmap_meshed-delaunay_vis/{seq_name}/{img_ins}_img.png")
+            # 深度裁剪范围
+            depth_min = 0.1
+            depth_max = 50.0
             
+            # 增加齐次坐标
+            ones = np.ones((point_cloud.shape[0], 1))
+            points_world_homogeneous = np.hstack((point_cloud, ones))
+            
+            # 使用外参矩阵进行变换
+            points_camera_homogeneous = extrinsic @ points_world_homogeneous.T
+
+            # 提取深度信息
+            depths = points_camera_homogeneous[2, :]
+
+            # 根据深度裁剪点
+            mask = (depths > depth_min) & (depths < depth_max)
+            points_camera_homogeneous = points_camera_homogeneous[:, mask]
+            point_color_clip = point_color[mask]
+            depths = depths[mask]
+
+            # 进行透视投影
+            points_camera = points_camera_homogeneous[:3, :] / points_camera_homogeneous[2, :]
+
+            # 应用内参矩阵
+            points_image_homogeneous = K @ points_camera
+
+            # normalize
+            points_image = points_image_homogeneous[:2, :] / points_image_homogeneous[2, :]
+
+            # sort depth
+            sorted_indices = np.argsort(depths)[::-1]
+            points_image_sorted = points_image[:, sorted_indices]
+            point_color_sorted = point_color_clip[sorted_indices]
+            
+            # rasterize
+            image = np.full((H, W, 3), 255, dtype=np.uint8)
+            for i in range(points_image_sorted.shape[1]):
+                x, y = int(points_image_sorted[0, i]), int(points_image_sorted[1, i])
+                color = point_color_sorted[i]
+                cv2.circle(image, (x, y), 3, (int(color[2]), int(color[1]), int(color[0])), -1)  # 绘制圆点，半径为5
+
+            # 保存图像
+            cv2.imwrite(f"colmap_dense_vis/pure_project/{seq_name}/{img_ins}", image)

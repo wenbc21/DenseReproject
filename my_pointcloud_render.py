@@ -1,8 +1,6 @@
 import open3d as o3d
 import numpy as np
 import os
-import numpy as np
-import numpy as np
 import cv2
 
 
@@ -140,7 +138,7 @@ if __name__ == '__main__':
             for i in range(points_image_sorted.shape[1]):
                 x, y = int(points_image_sorted[0, i]), int(points_image_sorted[1, i])
                 color = point_color_sorted[i] * 255
-                cv2.circle(image, (x, y), 3, (int(color[2]), int(color[1]), int(color[0])), -1)  # 绘制圆点，半径为5
+                cv2.circle(image, (x, y), 5, (int(color[2]), int(color[1]), int(color[0])), -1)  # 绘制圆点，半径为5
 
             # 保存图像
             cv2.imwrite(f"colmap_dense_vis/dense_pcd_vis/{seq_name}/{img_ins}", image)

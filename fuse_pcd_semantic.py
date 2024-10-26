@@ -17,8 +17,8 @@ for i in range(5) :
         dense_pcd_img = os.path.join(dense_pcd_path, seq_name, img_name)
 
         # 读取两张图像
-        image1 = cv2.imread(semantic_img)  # 替换为你的图像路径
-        image2 = cv2.imread(dense_pcd_img)  # 替换为你的图像路径
+        image1 = cv2.imread(semantic_img)
+        image2 = cv2.imread(dense_pcd_img)
 
         # 确保两张图像的大小相同
         if image1.shape != image2.shape:
