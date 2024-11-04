@@ -5,8 +5,8 @@ from tqdm import tqdm
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description='kitti process')
-    parser.add_argument('--root_dir', type=str, default='./../KITTI-360')
-    parser.add_argument('--save_dir', type=str, default='./../KITTI-colmap')
+    parser.add_argument('--root_dir', type=str, default='./../KITTI/KITTI-360')
+    parser.add_argument('--save_dir', type=str, default='./KITTI_to_colmap/KITTI-colmap')
     parser.add_argument('--drive_seq', type=str, default='3')
     args = parser.parse_args()
 
