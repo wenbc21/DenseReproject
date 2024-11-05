@@ -35,9 +35,11 @@ def load_cam_to_pose(cam_to_pose_fn):
 if __name__ == '__main__':
 
     DRIVE = '2013_05_28_drive_0003_sync'
+    seq = "seq_003"
     root_dir = './KITTI_to_colmap/KITTI-colmap'
-    data_dir = f'{root_dir}/{DRIVE}'
-    os.makedirs(f"colmap_dense_vis/extruded_vis/{DRIVE}", exist_ok=True)
+    data_dir = f'{root_dir}/{DRIVE}/{seq}'
+    save_dir = f"colmap_dense_vis/extruded_vis/{DRIVE}_{seq}"
+    os.makedirs(save_dir, exist_ok=True)
     
     img_names = sorted(os.listdir(data_dir))
     poses_fn = f'{root_dir}/data_poses/{DRIVE}/poses.txt'
@@ -68,33 +70,32 @@ if __name__ == '__main__':
         c2w_dict[f'00_{img_name}'] = c2w_00
         c2w_dict[f'01_{img_name}'] = c2w_01
     
-    # pcd = o3d.io.read_point_cloud(f"KITTI_to_colmap/colmap_res/{DRIVE}/dense/fused.ply")
-    pcd = o3d.io.read_point_cloud(f"colmap_dense_vis/extruded_pcd/{DRIVE}.ply")
+    pcd = o3d.io.read_point_cloud(f"colmap_dense_vis/extruded_pcd/{DRIVE}_{seq}.ply")
     point_cloud = np.asarray(pcd.points)
     point_color = np.asarray(pcd.colors)
+    
+    # 相机内参
+    W = 1408
+    H = 376
+    focal = P_rect_00[0][0]
+    cx = P_rect_00[0][2]
+    cy = P_rect_00[1][2]
+    K = np.array([[focal, 0, cx],
+                [0, focal, cy],
+                [0, 0, 1]])
+    
+    # 深度裁剪范围
+    depth_min = 0.1
+    depth_max = 50.0
+    
+    # 增加齐次坐标
+    ones = np.ones((point_cloud.shape[0], 1))
+    points_world_homogeneous = np.hstack((point_cloud, ones))
     
     for img_ins in tqdm(img_names):
         # 相机外参
         extrinsic = c2w_dict[img_ins]
         extrinsic = np.linalg.inv(extrinsic) #c2w->w2c
-        
-        # 相机内参
-        W = 1408
-        H = 376
-        focal = P_rect_00[0][0]
-        cx = P_rect_00[0][2]
-        cy = P_rect_00[1][2]
-        K = np.array([[focal, 0, cx],
-                    [0, focal, cy],
-                    [0, 0, 1]])
-        
-        # 深度裁剪范围
-        depth_min = 0.1
-        depth_max = 50.0
-        
-        # 增加齐次坐标
-        ones = np.ones((point_cloud.shape[0], 1))
-        points_world_homogeneous = np.hstack((point_cloud, ones))
         
         # 使用外参矩阵进行变换
         points_camera_homogeneous = extrinsic @ points_world_homogeneous.T
@@ -126,9 +127,11 @@ if __name__ == '__main__':
         image = np.full((H, W, 3), 255, dtype=np.uint8)
         for i in range(points_image_sorted.shape[1]):
             x, y = int(points_image_sorted[0, i]), int(points_image_sorted[1, i])
-            color = point_color_sorted[i] * 255
-            cv2.circle(image, (x, y), 2, (int(color[2]), int(color[1]), int(color[0])), -1)  # 绘制圆点，半径为5
+            if 0 <= x < W and 0 <= y < H:
+                color = point_color_sorted[i] * 255
+                # cv2.circle(image, (x, y), 2, (int(color[2]), int(color[1]), int(color[0])), -1)
+                cv2.rectangle(image, (x - 2, y - 2), (x + 2, y + 2), (int(color[2]), int(color[1]), int(color[0])), -1)
 
         # 保存图像
-        cv2.imwrite(f"colmap_dense_vis/extruded_vis/{DRIVE}/{img_ins}", image)
+        cv2.imwrite(f"{save_dir}/{img_ins}", image)
         

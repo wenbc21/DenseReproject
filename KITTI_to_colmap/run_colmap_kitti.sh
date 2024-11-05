@@ -2,7 +2,7 @@
 # SEQUENCE: pre-processed sequence id
 # PROJECT_ROOT: root directory of the colmap project to save the results
 # ROOT_DIR: root directory of the dataset (pre-processed)
-SEQUENCE='2013_05_28_drive_0003_sync'
+SEQUENCE='2013_05_28_drive_0003_sync/seq_001'
 PROJECT_ROOT='/mnt/slurm_home/bcwen/DenseReproject/KITTI_to_colmap/colmap_res'
 ROOT_DIR='/mnt/slurm_home/bcwen/DenseReproject/KITTI_to_colmap/KITTI-colmap'
 PROJECT_PATH=${PROJECT_ROOT}/${SEQUENCE}
@@ -21,7 +21,7 @@ xvfb-run colmap feature_extractor \
 --database_path database.db \
 --image_path ${ROOT_DIR}/${SEQUENCE}
 
-python ${WORK_SPACE}/colmap_kitti.py \
+python ${WORK_SPACE}/KITTI_to_colmap/colmap_kitti.py \
 --project_path ${PROJECT_PATH} \
 --data_path ${ROOT_DIR}
 
@@ -46,14 +46,6 @@ xvfb-run colmap patch_match_stereo \
 xvfb-run colmap stereo_fusion \
     --workspace_path dense \
     --output_path dense/fused.ply
-
-# python ${WORK_SPACE}/preprocess/colmap_bin2npy.py \
-# --project_path ${PROJECT_PATH} \
-# --save_dir ${ROOT_DIR}/${SEQUENCE}
-
-# colmap poisson_mesher \
-#     --input_path dense/fused.ply \
-#     --output_path dense/meshed-poisson.ply
 
 xvfb-run colmap delaunay_mesher \
     --input_path dense \

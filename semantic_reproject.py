@@ -61,15 +61,13 @@ def load_cam_to_pose(cam_to_pose_fn):
 if __name__ == '__main__':
 
     DRIVE = '2013_05_28_drive_0003_sync'
+    seq = "seq_003"
     root_dir = './KITTI_to_colmap/KITTI-colmap'
-    data_dir = f'{root_dir}/{DRIVE}'
+    data_dir = f'{root_dir}/{DRIVE}/{seq}'
     semantic_dir = f"./../KITTI/KITTI-360/data_2d_semantics/train/{DRIVE}/"
-    os.makedirs(f"colmap_dense_vis/semantic_label_pcd/{DRIVE}", exist_ok=True)
     os.makedirs(f"colmap_dense_vis/semantic_pcd/", exist_ok=True)
     
     img_names = sorted(os.listdir(data_dir))
-    semantic_images = os.listdir(semantic_dir+"image_00/semantic")
-    semantic_images = sorted(["00_" + img for img in semantic_images] + ["01_" + img for img in semantic_images])
     poses_fn = f'{root_dir}/data_poses/{DRIVE}/poses.txt'
     intrinsic_fn = f'{root_dir}/calibration/perspective.txt'
     cam2pose_fn = f'{root_dir}/calibration/calib_cam_to_pose.txt'
@@ -98,16 +96,18 @@ if __name__ == '__main__':
         c2w_dict[f'00_{img_name}'] = c2w_00
         c2w_dict[f'01_{img_name}'] = c2w_01
     
-    pcd = o3d.io.read_point_cloud(f"KITTI_to_colmap/colmap_res/{DRIVE}/dense/fused.ply")
+    pcd = o3d.io.read_point_cloud(f"KITTI_to_colmap/colmap_res/{DRIVE}/{seq}/dense/fused.ply")
     point_cloud = np.asarray(pcd.points)
     point_color = np.asarray(pcd.colors)
     point_idx = np.arange(point_cloud.shape[0])
     point_label = [[] for _ in range(point_cloud.shape[0])]
     print(point_cloud.shape, point_color.shape, point_idx.shape, len(point_label))
     
-    for img_ins in tqdm(semantic_images):
+    for img_ins in tqdm(img_names):
         cam_id = img_ins.split("_")[0]
         img_id = img_ins.split("_")[1].split(".")[0]
+        if not os.path.exists(os.path.join(semantic_dir, f"image_{cam_id}", "semantic", f"{img_id}.png")) :
+            continue
         
         # 相机外参
         extrinsic = c2w_dict[img_ins]
@@ -197,67 +197,5 @@ if __name__ == '__main__':
     semantic_pcd = o3d.geometry.PointCloud()
     semantic_pcd.points = o3d.utility.Vector3dVector(point_cloud_processed)
     semantic_pcd.colors = o3d.utility.Vector3dVector(point_semantic_color / 255)
-    o3d.io.write_point_cloud(f"colmap_dense_vis/semantic_pcd/{DRIVE}.ply", semantic_pcd)
+    o3d.io.write_point_cloud(f"colmap_dense_vis/semantic_pcd/{DRIVE}_{seq}.ply", semantic_pcd)
     
-    # # re-re-render
-    # for img_ins in img_names :
-    #     cam_id = img_ins.split("_")[0]
-    #     img_id = img_ins.split("_")[1].split(".")[0]
-        
-    #     # 相机外参
-    #     extrinsic = c2w_dict[img_ins]
-    #     extrinsic = np.linalg.inv(extrinsic) #c2w->w2c
-        
-    #     # 相机内参
-    #     W = 1408
-    #     H = 376
-    #     focal = P_rect_00[0][0]
-    #     cx = P_rect_00[0][2]
-    #     cy = P_rect_00[1][2]
-    #     K = np.array([[focal, 0, cx],
-    #                 [0, focal, cy],
-    #                 [0, 0, 1]])
-        
-    #     # 深度裁剪范围
-    #     depth_min = 0.1
-    #     depth_max = 100.0
-        
-    #     # 增加齐次坐标
-    #     ones = np.ones((point_cloud_processed.shape[0], 1))
-    #     points_world_homogeneous = np.hstack((point_cloud_processed, ones))
-        
-    #     # 使用外参矩阵进行变换
-    #     points_camera_homogeneous = extrinsic @ points_world_homogeneous.T
-
-    #     # 提取深度信息
-    #     depths = points_camera_homogeneous[2, :]
-
-    #     # 根据深度裁剪点
-    #     mask = (depths > depth_min) & (depths < depth_max)
-    #     points_camera_homogeneous = points_camera_homogeneous[:, mask]
-    #     point_color_clip = point_semantic_color[mask]
-    #     depths = depths[mask]
-
-    #     # 进行透视投影
-    #     points_camera = points_camera_homogeneous[:3, :] / points_camera_homogeneous[2, :]
-
-    #     # 应用内参矩阵
-    #     points_image_homogeneous = K @ points_camera
-
-    #     # normalize
-    #     points_image = points_image_homogeneous[:2, :] / points_image_homogeneous[2, :]
-
-    #     # sort depth
-    #     sorted_indices = np.argsort(depths)[::-1]
-    #     points_image_sorted = points_image[:, sorted_indices]
-    #     point_color_sorted = point_color_clip[sorted_indices]
-            
-    #     # rasterize
-    #     image = np.full((H, W, 3), 255, dtype=np.uint8)
-    #     for i in range(points_image_sorted.shape[1]):
-    #         x, y = int(points_image_sorted[0, i]), int(points_image_sorted[1, i])
-    #         color = point_color_sorted[i]
-    #         cv2.circle(image, (x, y), 3, (int(color[2]), int(color[1]), int(color[0])), -1)  # 绘制圆点，半径为5
-
-    #     # 保存图像
-    #     cv2.imwrite(f"colmap_dense_vis/semantic_label_pcd/{seq_name}/{img_ins}", image)
