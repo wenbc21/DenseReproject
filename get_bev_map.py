@@ -63,10 +63,10 @@ if __name__ == '__main__':
 
     DRIVE = '2013_05_28_drive_0003_sync'
     seq = 'seq_003'
-    semantic_pcd_dir = f"colmap_dense_vis/semantic_pcd"
+    semantic_pcd_dir = f"colmap_dense_vis/{DRIVE}/{seq}/semantic_pcd"
 
-    os.makedirs(f"colmap_dense_vis/bev_map/{DRIVE}_{seq}", exist_ok=True)
-    os.makedirs(f"colmap_dense_vis/extruded_pcd", exist_ok=True)
+    os.makedirs(f"colmap_dense_vis/{DRIVE}/{seq}/bev_map/{DRIVE}_{seq}", exist_ok=True)
+    os.makedirs(f"colmap_dense_vis/{DRIVE}/{seq}/extruded_pcd", exist_ok=True)
     
     pcd = o3d.io.read_point_cloud(os.path.join(semantic_pcd_dir, f"{DRIVE}_{seq}.ply"))
     point_cloud = np.asarray(pcd.points)
@@ -111,12 +111,12 @@ if __name__ == '__main__':
                 btu_hf_rest[_y, _x] = _z
             sem_map_rest[_y, _x] = r, g, b
     
-    cv2.imwrite(f"colmap_dense_vis/bev_map/{DRIVE}_{seq}/semantic_vege.png", sem_map_vege[:, ::-1])
-    cv2.imwrite(f"colmap_dense_vis/bev_map/{DRIVE}_{seq}/topdown_vege.png", tpd_hf_vege)
-    cv2.imwrite(f"colmap_dense_vis/bev_map/{DRIVE}_{seq}/bottomup_vege.png", btu_hf_vege)
-    cv2.imwrite(f"colmap_dense_vis/bev_map/{DRIVE}_{seq}/semantic_rest.png", sem_map_rest[:, ::-1])
-    cv2.imwrite(f"colmap_dense_vis/bev_map/{DRIVE}_{seq}/topdown_rest.png", tpd_hf_rest)
-    cv2.imwrite(f"colmap_dense_vis/bev_map/{DRIVE}_{seq}/bottomup_rest.png", btu_hf_rest)
+    cv2.imwrite(f"colmap_dense_vis/{DRIVE}/{seq}/bev_map/semantic_vege.png", sem_map_vege[:, ::-1])
+    cv2.imwrite(f"colmap_dense_vis/{DRIVE}/{seq}/bev_map/topdown_vege.png", tpd_hf_vege)
+    cv2.imwrite(f"colmap_dense_vis/{DRIVE}/{seq}/bev_map/bottomup_vege.png", btu_hf_vege)
+    cv2.imwrite(f"colmap_dense_vis/{DRIVE}/{seq}/bev_map/semantic_rest.png", sem_map_rest[:, ::-1])
+    cv2.imwrite(f"colmap_dense_vis/{DRIVE}/{seq}/bev_map/topdown_rest.png", tpd_hf_rest)
+    cv2.imwrite(f"colmap_dense_vis/{DRIVE}/{seq}/bev_map/bottomup_rest.png", btu_hf_rest)
     
     points_vege, colors_vege = get_points_from_projections(
         sem_map_vege,
@@ -136,5 +136,5 @@ if __name__ == '__main__':
     extruded_pcd = o3d.geometry.PointCloud()
     extruded_pcd.points = o3d.utility.Vector3dVector((points + np.array([x_min, y_min, z_min])) / 10)
     extruded_pcd.colors = o3d.utility.Vector3dVector(colors / 255)
-    o3d.io.write_point_cloud(f"colmap_dense_vis/extruded_pcd/{DRIVE}_{seq}.ply", extruded_pcd)
+    o3d.io.write_point_cloud(f"colmap_dense_vis/{DRIVE}/{seq}/extruded_pcd/{DRIVE}_{seq}.ply", extruded_pcd)
 

@@ -38,7 +38,7 @@ if __name__ == '__main__':
     seq = "seq_003"
     root_dir = './KITTI_to_colmap/KITTI-colmap'
     data_dir = f'{root_dir}/{DRIVE}/{seq}'
-    save_dir = f"colmap_dense_vis/extruded_vis/{DRIVE}_{seq}"
+    save_dir = f"colmap_dense_vis/{DRIVE}/{seq}/extruded_vis"
     os.makedirs(save_dir, exist_ok=True)
     
     img_names = sorted(os.listdir(data_dir))
@@ -70,7 +70,7 @@ if __name__ == '__main__':
         c2w_dict[f'00_{img_name}'] = c2w_00
         c2w_dict[f'01_{img_name}'] = c2w_01
     
-    pcd = o3d.io.read_point_cloud(f"colmap_dense_vis/extruded_pcd/{DRIVE}_{seq}.ply")
+    pcd = o3d.io.read_point_cloud(f"colmap_dense_vis/{DRIVE}/{seq}/extruded_pcd/{DRIVE}_{seq}.ply")
     point_cloud = np.asarray(pcd.points)
     point_color = np.asarray(pcd.colors)
     
@@ -86,52 +86,110 @@ if __name__ == '__main__':
     
     # 深度裁剪范围
     depth_min = 0.1
-    depth_max = 50.0
+    depth_max = 100.0
     
     # 增加齐次坐标
     ones = np.ones((point_cloud.shape[0], 1))
     points_world_homogeneous = np.hstack((point_cloud, ones))
     
+    import time
+    step1 = 0.0
+    step2 = 0.0
+    step3 = 0.0
+    step4 = 0.0
+    step5 = 0.0
+    step6 = 0.0
+    step7 = 0.0
+    step8 = 0.0
+    step9 = 0.0
+    step10 = 0.0
+    
     for img_ins in tqdm(img_names):
-        # 相机外参
+        # 相机外参 # 127
+        start_time = time.time()
         extrinsic = c2w_dict[img_ins]
         extrinsic = np.linalg.inv(extrinsic) #c2w->w2c
+        end_time = time.time()
+        step1 += ((end_time - start_time) * 1000)
+        start_time = time.time()
         
-        # 使用外参矩阵进行变换
+        # 使用外参矩阵进行变换 # 14736
         points_camera_homogeneous = extrinsic @ points_world_homogeneous.T
+        end_time = time.time()
+        step2 += ((end_time - start_time) * 1000)
+        start_time = time.time()
 
-        # 提取深度信息
+        # 提取深度信息 # 24
         depths = points_camera_homogeneous[2, :]
+        end_time = time.time()
+        step3 += ((end_time - start_time) * 1000)
+        start_time = time.time()
 
-        # 根据深度裁剪点
+        # 根据深度裁剪点 # 83715
         mask = (depths > depth_min) & (depths < depth_max)
         points_camera_homogeneous = points_camera_homogeneous[:, mask]
         point_color_l = point_color[mask]
         depths = depths[mask]
+        end_time = time.time()
+        step4 += ((end_time - start_time) * 1000)
+        start_time = time.time()
 
-        # 进行透视投影
+        # 进行透视投影 # 11922
         points_camera = points_camera_homogeneous[:3, :] / points_camera_homogeneous[2, :]
+        end_time = time.time()
+        step5 += ((end_time - start_time) * 1000)
+        start_time = time.time()
 
-        # 应用内参矩阵
+        # 应用内参矩阵 # 4460
         points_image_homogeneous = K @ points_camera
+        end_time = time.time()
+        step6 += ((end_time - start_time) * 1000)
+        start_time = time.time()
 
-        # 归一化
+        # 归一化 # 3606
         points_image = points_image_homogeneous[:2, :] / points_image_homogeneous[2, :]
+        end_time = time.time()
+        step7 += ((end_time - start_time) * 1000)
+        start_time = time.time()
+        
+        # 保留视锥体内部的点
+        visible_point = (points_image[0, :] >= 0) & (points_image[0, :] < W) & \
+             (points_image[1, :] >= 0) & (points_image[1, :] < H)
+        points_image = points_image[:, visible_point]
+        point_color_l = point_color_l[visible_point] * 255
+        depths = depths[visible_point]
+        end_time = time.time()
+        step8 += ((end_time - start_time) * 1000)
+        start_time = time.time()
 
-        # 对深度进行排序
+        # 对深度进行排序 # 114017
         sorted_indices = np.argsort(depths)[::-1]
         points_image_sorted = points_image[:, sorted_indices]
         point_color_sorted = point_color_l[sorted_indices]
+        end_time = time.time()
+        step9 += ((end_time - start_time) * 1000)
+        start_time = time.time()
         
         # rasterize
         image = np.full((H, W, 3), 255, dtype=np.uint8)
         for i in range(points_image_sorted.shape[1]):
-            x, y = int(points_image_sorted[0, i]), int(points_image_sorted[1, i])
-            if 0 <= x < W and 0 <= y < H:
-                color = point_color_sorted[i] * 255
-                # cv2.circle(image, (x, y), 2, (int(color[2]), int(color[1]), int(color[0])), -1)
-                cv2.rectangle(image, (x - 2, y - 2), (x + 2, y + 2), (int(color[2]), int(color[1]), int(color[0])), -1)
+            point = points_image_sorted[:, i]
+            x, y = int(point[0]), int(point[1])
+            color = point_color_sorted[i]
+            image[y-2:y+2,x-2:x+2] = (int(color[2]), int(color[1]), int(color[0]))
+        end_time = time.time()
+        step10 += ((end_time - start_time) * 1000)
 
         # 保存图像
         cv2.imwrite(f"{save_dir}/{img_ins}", image)
-        
+    
+    print(step1/1000)
+    print(step2/1000)
+    print(step3/1000)
+    print(step4/1000)
+    print(step5/1000)
+    print(step6/1000)
+    print(step7/1000)
+    print(step8/1000)
+    print(step9/1000)
+    print(step10/1000)
