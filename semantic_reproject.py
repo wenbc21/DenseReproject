@@ -88,15 +88,17 @@ def load_cam_to_pose(cam_to_pose_fn):
     return c2p_00, c2p_01
 
 if __name__ == '__main__':
-
+    
+    # all the configs are here
     DRIVE = '2013_05_28_drive_0003_sync'
-    seq = "seq_003"
+    seq = "seq_001"
     root_dir = './KITTI_to_colmap/KITTI-colmap'
     data_dir = f'{root_dir}/{DRIVE}/{seq}'
     semantic_dir = f"./../KITTI/KITTI-360/data_2d_semantics/train/{DRIVE}/"
     bbox_dir = f"./../KITTI/KITTI-360/data_3d_bboxes/train_full/{DRIVE}.xml"
     os.makedirs(f"colmap_dense_vis/{DRIVE}/{seq}/semantic_pcd/", exist_ok=True)
     
+    # read data
     img_names = sorted(os.listdir(data_dir))
     poses_fn = f'{root_dir}/data_poses/{DRIVE}/poses.txt'
     intrinsic_fn = f'{root_dir}/calibration/perspective.txt'
@@ -109,6 +111,7 @@ if __name__ == '__main__':
         img_name = f'{img_id[i]:010d}.png'
         pose_dict[img_name] = poses[i]
     
+    # load pose
     P_rect_00, P_rect_01, R_rect_00_, R_rect_01_ = load_intrinsics(intrinsic_fn)
     c2p_00, c2p_01 = load_cam_to_pose(cam2pose_fn)
     c2p_00 = np.concatenate([c2p_00, np.array([[0, 0, 0, 1]])], axis=0)
@@ -126,6 +129,7 @@ if __name__ == '__main__':
         c2w_dict[f'00_{img_name}'] = c2w_00
         c2w_dict[f'01_{img_name}'] = c2w_01
     
+    # read point cloud
     pcd = o3d.io.read_point_cloud(f"KITTI_to_colmap/colmap_res/{DRIVE}/{seq}/dense/fused.ply")
     point_cloud = np.asarray(pcd.points)
     point_color = np.asarray(pcd.colors)
@@ -133,7 +137,7 @@ if __name__ == '__main__':
     point_label = [[] for _ in range(point_cloud.shape[0])]
     print(point_cloud.shape, point_color.shape, point_idx.shape, len(point_label))
     
-    # intrinsic
+    # intrinsic matrix
     W = 1408
     H = 376
     focal = P_rect_00[0][0]
@@ -145,21 +149,24 @@ if __name__ == '__main__':
     
     # depth clip range
     depth_min = 0.1
-    depth_max = 100.0
+    depth_max = 50.0
     
-    # homogeneous extension
+    # add homogeneous dimension
     ones = np.ones((point_cloud.shape[0], 1))
     points_world_homogeneous = np.hstack((point_cloud, ones))
     
+    # point cloud transform for each camera pose
     for img_ins in tqdm(img_names):
         cam_id = img_ins.split("_")[0]
         img_id = img_ins.split("_")[1].split(".")[0]
+        
+        # some rgb images don't have corresponding semantic label
         if not os.path.exists(os.path.join(semantic_dir, f"image_{cam_id}", "semantic", f"{img_id}.png")) :
             continue
         
-        # extrinsic
+        # extrinsic c2w -> w2c
         extrinsic = c2w_dict[img_ins]
-        extrinsic = np.linalg.inv(extrinsic) #c2w->w2c
+        extrinsic = np.linalg.inv(extrinsic)
         
         # extrinsic matrix multiply
         points_camera_homogeneous = extrinsic @ points_world_homogeneous.T
@@ -181,12 +188,13 @@ if __name__ == '__main__':
         # normalize
         points_image = points_image_homogeneous[:2, :] / points_image_homogeneous[2, :]
         
-        # reserve points inside frustum
+        # reserve points in frustrum
         visible_point = (points_image[0, :] >= 0) & (points_image[0, :] < W) & \
              (points_image[1, :] >= 0) & (points_image[1, :] < H)
         points_image = points_image[:, visible_point]
         point_color_clip = point_color_clip[visible_point]
         depths = depths[visible_point]
+        point_idx_clip = point_idx_clip[visible_point]
 
         # sort depth
         sorted_indices = np.argsort(depths)[::-1]
@@ -200,18 +208,21 @@ if __name__ == '__main__':
         semantic_img = cv2.imread(semantic_img, cv2.IMREAD_GRAYSCALE)
         
         # pseudo rasterize
+        # TODO: accelerate this loop
         index_image = np.zeros((H, W), dtype=int)
         for i in range(points_image_sorted.shape[1]):
-            point = points_image_sorted[:, i]
-            x, y = int(point[0]), int(point[1])
-            index_image[y,x] = point_idx_sorted[i]
+            x, y = int(points_image_sorted[0, i]), int(points_image_sorted[1, i])
+            index_image[y][x] = point_idx_sorted[i]
+        
+        # assign label from view to points
         for yy in range(0, H) :
             for xx in range(0, W) :
-                semantic_label = semantic_img[yy,xx]
+                semantic_label = semantic_img[yy][xx]
                 if semantic_label in label_color_dict :
-                    point_label[index_image[yy,xx]].append(semantic_label)
+                    point_label[index_image[yy][xx]].append(semantic_label)
     
-    # reassign label
+    # select final semantic label
+    # TODO: PSA
     point_cloud_processed = []
     point_semantic_color = []
     for point_ins in range(point_cloud.shape[0]) :
@@ -219,19 +230,23 @@ if __name__ == '__main__':
         if semantic_list != [] :
             count = Counter(semantic_list)
             most_common = count.most_common(1)
+            # remove sky points
             if most_common[0][0] != 23 :
                 semantic_color = label_color_dict[most_common[0][0]]
                 point_cloud_processed.append(point_cloud[point_ins])
                 point_semantic_color.append(semantic_color)
     
+    # here comes our beautiful semantic point cloud, but it's noisy
     point_cloud_processed = np.array(point_cloud_processed)
     point_semantic_color = np.array(point_semantic_color)
     print(point_cloud_processed.shape, point_semantic_color.shape)
     
-    # remove dynamic cars
+    # extract all car points
     car_points = np.all(point_semantic_color == (0, 0, 142), axis=1)
     car_point_indices = np.where(car_points)[0]
     point_cloud_car = point_cloud_processed[car_points]
+    
+    # find all static car in KITTI 3D BBOX
     xml_root = lxml.etree.parse(bbox_dir).getroot()
     annotations = []
     reserve_id = np.zeros((point_cloud_car.shape[0]))
@@ -247,12 +262,14 @@ if __name__ == '__main__':
             continue
         annotations.append(bbox_3d)
     
+    # reserve all static car points
     for anno in annotations :
         vertices = anno["vertices"]
         if vertices.shape != (8, 3) :
             continue
         bbox_center = np.mean(vertices, axis=0)
         
+        # get bbox axis and transform point cloud
         z_mean = np.mean(vertices[:, 2])
         lower_vertices = vertices[vertices[:, 2] < z_mean]
         upper_vertices = vertices[vertices[:, 2] > z_mean]
@@ -275,15 +292,15 @@ if __name__ == '__main__':
         bbox_relative_to_center = vertices - bbox_center
         bbox_rotated = bbox_relative_to_center.dot(rotation_matrix.T)
 
+        # get transformed points within the transformed bbox
         min_point = bbox_rotated[np.argmin(np.sum(bbox_rotated, axis=1))]
         max_point = bbox_rotated[np.argmax(np.sum(bbox_rotated, axis=1))]
-
         in_box = np.all((rotated_points >= min_point) & (rotated_points <= max_point), axis=1)
-
         for inb in range(point_cloud_car.shape[0]) :
             if in_box[inb] :
                 reserve_id[inb] = 1
     
+    # remove the rest
     remove_idx = car_point_indices[np.where(reserve_id == 0)]
     point_cloud_processed = np.delete(point_cloud_processed, remove_idx, axis=0)
     point_semantic_color = np.delete(point_semantic_color, remove_idx, axis=0)

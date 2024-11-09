@@ -88,14 +88,10 @@ if __name__ == '__main__':
             c2w_dict[f'00_{img_name}'] = c2w_00
             c2w_dict[f'01_{img_name}'] = c2w_01
         
-        # 创建场景
-        
         for img_ins in img_names :
-            # 相机外参
             extrinsic = c2w_dict[img_ins]
             extrinsic = np.linalg.inv(extrinsic) #c2w->w2c
 
-            # 相机内参
             W = 1408
             H = 376
             focal = P_rect_00[0][0]
@@ -164,9 +160,7 @@ if __name__ == '__main__':
 
             img = img.astype(np.uint8)  # 转换为 uint8 类型
 
-            # 将 NumPy 数组转换为图片
             img = Image.fromarray(img)
 
-            # 保存图片
             img.save(f"colmap_meshed-delaunay_vis/{seq_name}/{img_ins}_img.png")
             
