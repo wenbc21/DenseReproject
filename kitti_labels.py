@@ -6,6 +6,77 @@
 from collections import namedtuple
 
 
+gaussiancity_label_color_dict = {
+     6 : ( 81,  0, 81), # 'ground'
+     7 : (128, 64,128), # 'road'          
+     8 : (244, 35,232), # 'sidewalk'      
+    11 : ( 70, 70, 70), # 'building'      
+    # 12 : (102,102,156), # 'wall'          
+    # 13 : (190,153,153), # 'fence'         
+    # 17 : (153,153,153), # 'pole'          
+    # 19 : (250,170, 30), # 'traffic light' 
+    # 20 : (220,220,  0), # 'traffic sign'  
+    21 : (107,142, 35), # 'vegetation'    
+    22 : (152,251,152), # 'terrain'       
+    # 23 : ( 70,130,180), # 'sky'           
+    # 24 : (220, 20, 60), # 'person'        
+    # 25 : (255,  0,  0), # 'rider'         
+    26 : (  0,  0,142), # 'car'           
+    27 : (  0,  0, 70), # 'truck'         
+    # 28 : (  0, 60,100), # 'bus'           
+    # 31 : (  0, 80,100), # 'train'         
+    # 32 : (  0,  0,230), # 'motorcycle'    
+    # 33 : (119, 11, 32), # 'bicycle'       
+    # 34 : ( 64,128,128), # 'garage'        
+    # 35 : (190,153,153), # 'gate'          
+    # 37 : (153,153,153), # 'smallpole'     
+}
+
+import random
+random.seed(21)
+MAX_N_INSTANCES = 100
+base_car_color = [0, 40, 140]
+base_building_color = [50, 50, 50]
+color_range = list(range(MAX_N_INSTANCES))
+random.shuffle(color_range)
+
+def car_palette(index) :
+    index = index % MAX_N_INSTANCES
+    return (base_car_color[0], base_car_color[1]+color_range[index], base_car_color[2]+color_range[index])
+
+def building_palette(index) :
+    index = index % MAX_N_INSTANCES
+    return (base_building_color[0]+color_range[index], base_building_color[1]+color_range[index], base_building_color[2]+color_range[index])
+
+
+# HAOZHE Classes
+CLASSES = {
+    # autonomousvision/kitti360Scripts/kitti360scripts/helpers/labels.py
+    "KITTI_360": {
+        "NULL": 0,
+        "ROAD": 1,
+        "BLDG_FACADE": 2,
+        "CAR": 3,
+        "VEGETATION": 4,
+        "SKY": 5,
+        "ZONE": 6,
+        "BLDG_ROOF": 7,
+    },
+}
+KITTI_CLASSES = {
+    "road": CLASSES["KITTI_360"]["ROAD"],
+    "driveway": CLASSES["KITTI_360"]["ROAD"],
+    "building": CLASSES["KITTI_360"]["BLDG_FACADE"],
+    "car": CLASSES["KITTI_360"]["CAR"],
+    "truck": CLASSES["KITTI_360"]["CAR"],
+    "vegetation": CLASSES["KITTI_360"]["VEGETATION"],
+    "sky": CLASSES["KITTI_360"]["SKY"],
+    "sidewalk": CLASSES["KITTI_360"]["ZONE"],
+    "ground": CLASSES["KITTI_360"]["ZONE"],
+}
+
+
+
 #--------------------------------------------------------------------------------
 # Definitions
 #--------------------------------------------------------------------------------

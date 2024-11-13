@@ -35,8 +35,8 @@ def load_cam_to_pose(cam_to_pose_fn):
 if __name__ == '__main__':
 
     # all the configs are here
-    DRIVE = '2013_05_28_drive_0007_sync'
-    seq = "seq_003"
+    DRIVE = '2013_05_28_drive_0003_sync'
+    seq = "seq_001"
     root_dir = './KITTI_to_colmap/KITTI-colmap'
     data_dir = f'{root_dir}/{DRIVE}/{seq}'
     save_dir = f"colmap_dense_vis/{DRIVE}/{seq}/extruded_vis"
@@ -97,7 +97,7 @@ if __name__ == '__main__':
     points_world_homogeneous = np.hstack((point_cloud, ones))
     
     # point cloud transform for each camera pose
-    for img_ins in tqdm(img_names):
+    for img_ins in tqdm(img_names, desc=f"Rendering camera view"):
         # don't have to render both view
         if img_ins.split('_')[0] == "01" :
             continue

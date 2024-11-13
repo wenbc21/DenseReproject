@@ -1,4 +1,4 @@
-# Dense PointCloud from Colmap to get BEV Map for GaussianCity
+# Dense PointCloud from Colmap to get BEV Map
 
 ### How to use
 Remember to edit the DRIVE and sequence configs in all files!
@@ -14,6 +14,3 @@ You may visualize and check any intermediate results using these codes.
 1. Visualize point cloud using pyvista [colmap_dense_vis](colmap_dense_vis.py)
 2. Visualize point cloud using my own renderer [my_pointcloud_render](my_pointcloud_render.py)
 3. Visualize rendered RGB images together with semantic labels [fuse_pcd_semantic](fuse_pcd_semantic.py)
-
-### TODO
-1. accelerate point cloud render process (放假回家搞)
