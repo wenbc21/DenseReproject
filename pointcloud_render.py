@@ -1,6 +1,7 @@
 import open3d as o3d
 import numpy as np
 import os
+import argparse
 import cv2
 from tqdm import tqdm
 
@@ -35,18 +36,23 @@ def load_cam_to_pose(cam_to_pose_fn):
 if __name__ == '__main__':
 
     # all the configs are here
-    DRIVE = '2013_05_28_drive_0003_sync'
-    seq = "seq_001"
-    root_dir = './KITTI_to_colmap/KITTI-colmap'
-    data_dir = f'{root_dir}/{DRIVE}/{seq}'
-    save_dir = f"colmap_dense_vis/{DRIVE}/{seq}/extruded_vis"
-    os.makedirs(save_dir, exist_ok=True)
+    parser = argparse.ArgumentParser(description='Render Camera views of extruded point cloud')
+    parser.add_argument('--DRIVE', type = str, default = '2013_05_28_drive_0003_sync')
+    parser.add_argument('--seq', type = str, default = 'seq_001')
+    parser.add_argument('--root_dir', type = str, default = './KITTI_to_colmap/KITTI-colmap')
+    parser.add_argument('--save_dir', type = str, default = './results')
+    args = parser.parse_args()
+    
+    DRIVE = args.DRIVE
+    seq = args.seq
+    save_dir = f"{args.save_dir}/{DRIVE}/{seq}"
+    os.makedirs(f"{save_dir}/extruded_vis", exist_ok=True)
     
     # read data
-    img_names = sorted(os.listdir(data_dir))
-    poses_fn = f'{root_dir}/data_poses/{DRIVE}/poses.txt'
-    intrinsic_fn = f'{root_dir}/calibration/perspective.txt'
-    cam2pose_fn = f'{root_dir}/calibration/calib_cam_to_pose.txt'
+    img_names = sorted(os.listdir(f'{args.root_dir}/{DRIVE}/{seq}'))
+    poses_fn = f'{args.root_dir}/data_poses/{DRIVE}/poses.txt'
+    intrinsic_fn = f'{args.root_dir}/calibration/perspective.txt'
+    cam2pose_fn = f'{args.root_dir}/calibration/calib_cam_to_pose.txt'
     poses = np.loadtxt(poses_fn)
     img_id = poses[:, 0].astype(np.int32)
     poses = poses[:, 1:].reshape(-1, 3, 4)
@@ -74,7 +80,7 @@ if __name__ == '__main__':
         c2w_dict[f'01_{img_name}'] = c2w_01
     
     # read point cloud
-    pcd = o3d.io.read_point_cloud(f"colmap_dense_vis/{DRIVE}/{seq}/extruded_pcd/{DRIVE}_{seq}.ply")
+    pcd = o3d.io.read_point_cloud(f"{save_dir}/extruded_pcd/{DRIVE}_{seq}.ply")
     point_cloud = np.asarray(pcd.points)
     point_color = np.asarray(pcd.colors)
     
@@ -147,4 +153,4 @@ if __name__ == '__main__':
             image[y-2:y+2,x-2:x+2] = (int(color[2]), int(color[1]), int(color[0]))
 
         # save rendered image
-        cv2.imwrite(f"{save_dir}/{img_ins}", image)
+        cv2.imwrite(f"{save_dir}/extruded_vis/{img_ins}", image)

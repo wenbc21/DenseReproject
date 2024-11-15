@@ -1,6 +1,7 @@
 import open3d as o3d
 import numpy as np
 import os
+import argparse
 import cv2
 from tqdm import tqdm
 import json
@@ -9,17 +10,15 @@ from kitti_labels import gaussiancity_label_color_dict, car_palette, building_pa
 def get_points_from_projections(sem_map, tpd_hf, btu_hf, is_vege) :
     points = []
     colors = []
-    height = sem_map.shape[0]
-    weight = sem_map.shape[1]
     
-    for x in tqdm(range(1, height - 1), desc="Extruding from BEV Maps"):
-        for y in range(1, weight - 1) :
+    for x in tqdm(range(1, sem_map.shape[0] - 1), desc="Extruding from BEV Maps"):
+        for y in range(1, sem_map.shape[1] - 1) :
 
             # for each point between the lowest and highest in this location
-            for k in range(btu_hf[x][y], tpd_hf[x][y] + 1) :
+            for k in range(btu_hf[x, y], tpd_hf[x, y] + 1) :
                 
-                sem_val = sem_map[x][y]
-                tpd_val = tpd_hf[x][y]
+                sem_val = sem_map[x, y]
+                tpd_val = tpd_hf[x, y]
                 
                 if sem_val < 100 :
                     sem_rgb = gaussiancity_label_color_dict[sem_val]
@@ -30,22 +29,22 @@ def get_points_from_projections(sem_map, tpd_hf, btu_hf, is_vege) :
                 
                 # add the top point
                 if k > tpd_val - 1 :
-                    points.append([y, x, k])
+                    points.append([x, y, k])
                     colors.append(sem_rgb)
                     continue
                 # only for vegetation, add the lowest point
                 if is_vege and k == btu_hf[x][y] :
-                    points.append([y, x, k])
+                    points.append([x, y, k])
                     colors.append(sem_rgb)
                     continue
                 # if not all nearby position share the same height, then add
                 if np.count_nonzero(tpd_hf[x-1:x+1][y-1:y+1] == tpd_val) != 9 :
-                    points.append([y, x, k])
+                    points.append([x, y, k])
                     colors.append(sem_rgb)
                     continue
                 # if not all nearby position share the same semantic, then add
                 if np.count_nonzero(sem_map[x-1:x+1][y-1:y+1] == sem_val) != 9 :
-                    points.append([y, x, k])
+                    points.append([x, y, k])
                     colors.append(sem_rgb)
     return np.array(points), np.array(colors)
 
@@ -53,20 +52,27 @@ def get_points_from_projections(sem_map, tpd_hf, btu_hf, is_vege) :
 if __name__ == '__main__':
 
     # all the configs are here
-    DRIVE = '2013_05_28_drive_0003_sync'
-    seq = 'seq_001'
-    os.makedirs(f"colmap_dense_vis/{DRIVE}/{seq}/extruded_pcd", exist_ok=True)
+    parser = argparse.ArgumentParser(description='Extrude from BEV Map')
+    parser.add_argument('--DRIVE', type = str, default = '2013_05_28_drive_0003_sync')
+    parser.add_argument('--seq', type = str, default = 'seq_001')
+    parser.add_argument('--save_dir', type = str, default = './results')
+    args = parser.parse_args()
+    
+    DRIVE = args.DRIVE
+    seq = args.seq
+    save_dir = f"{args.save_dir}/{DRIVE}/{seq}"
+    os.makedirs(f"{save_dir}/extruded_pcd", exist_ok=True)
     
     # read BEV Map
-    sem_map_vege = cv2.imread(f"colmap_dense_vis/{DRIVE}/{seq}/bev_map/semantic_vege.png", cv2.IMREAD_UNCHANGED)
-    tpd_hf_vege = cv2.imread(f"colmap_dense_vis/{DRIVE}/{seq}/bev_map/topdown_vege.png", cv2.IMREAD_UNCHANGED)
-    btu_hf_vege = cv2.imread(f"colmap_dense_vis/{DRIVE}/{seq}/bev_map/bottomup_vege.png", cv2.IMREAD_UNCHANGED)
-    sem_map_rest = cv2.imread(f"colmap_dense_vis/{DRIVE}/{seq}/bev_map/semantic_rest.png", cv2.IMREAD_UNCHANGED)
-    tpd_hf_rest = cv2.imread(f"colmap_dense_vis/{DRIVE}/{seq}/bev_map/topdown_rest.png", cv2.IMREAD_UNCHANGED)
-    btu_hf_rest = cv2.imread(f"colmap_dense_vis/{DRIVE}/{seq}/bev_map/bottomup_rest.png", cv2.IMREAD_UNCHANGED)
+    sem_map_vege = cv2.imread(f"{save_dir}/bev_map/semantic_vege.png", cv2.IMREAD_UNCHANGED)
+    tpd_hf_vege = cv2.imread(f"{save_dir}/bev_map/topdown_vege.png", cv2.IMREAD_UNCHANGED)
+    btu_hf_vege = cv2.imread(f"{save_dir}/bev_map/bottomup_vege.png", cv2.IMREAD_UNCHANGED)
+    sem_map_rest = cv2.imread(f"{save_dir}/bev_map/semantic_rest.png", cv2.IMREAD_UNCHANGED)
+    tpd_hf_rest = cv2.imread(f"{save_dir}/bev_map/topdown_rest.png", cv2.IMREAD_UNCHANGED)
+    btu_hf_rest = cv2.imread(f"{save_dir}/bev_map/bottomup_rest.png", cv2.IMREAD_UNCHANGED)
     
     # get world relation position
-    with open(f"colmap_dense_vis/{DRIVE}/{seq}/bev_map/position_info.json", "r") as position_info_file:
+    with open(f"{save_dir}/bev_map/position_info.json", "r") as position_info_file:
         position_info = json.load(position_info_file)
     x_min = position_info["x_min"]
     y_min = position_info["y_min"]
@@ -93,4 +99,4 @@ if __name__ == '__main__':
     extruded_pcd = o3d.geometry.PointCloud()
     extruded_pcd.points = o3d.utility.Vector3dVector((points + np.array([x_min, y_min, z_min])) / 10)
     extruded_pcd.colors = o3d.utility.Vector3dVector(colors / 255)
-    o3d.io.write_point_cloud(f"colmap_dense_vis/{DRIVE}/{seq}/extruded_pcd/{DRIVE}_{seq}.ply", extruded_pcd)
+    o3d.io.write_point_cloud(f"{save_dir}/extruded_pcd/{DRIVE}_{seq}.ply", extruded_pcd)

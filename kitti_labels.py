@@ -5,13 +5,12 @@
 
 from collections import namedtuple
 
-
 gaussiancity_label_color_dict = {
      6 : ( 81,  0, 81), # 'ground'
      7 : (128, 64,128), # 'road'          
      8 : (244, 35,232), # 'sidewalk'      
     11 : ( 70, 70, 70), # 'building'      
-    # 12 : (102,102,156), # 'wall'          
+    12 : (102,102,156), # 'wall'          
     # 13 : (190,153,153), # 'fence'         
     # 17 : (153,153,153), # 'pole'          
     # 19 : (250,170, 30), # 'traffic light' 
@@ -27,7 +26,7 @@ gaussiancity_label_color_dict = {
     # 31 : (  0, 80,100), # 'train'         
     # 32 : (  0,  0,230), # 'motorcycle'    
     # 33 : (119, 11, 32), # 'bicycle'       
-    # 34 : ( 64,128,128), # 'garage'        
+    34 : ( 64,128,128), # 'garage'        
     # 35 : (190,153,153), # 'gate'          
     # 37 : (153,153,153), # 'smallpole'     
 }

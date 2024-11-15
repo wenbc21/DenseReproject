@@ -1,5 +1,6 @@
 import open3d as o3d
 import numpy as np
+import argparse
 import os
 import cv2
 import lxml.etree
@@ -69,19 +70,25 @@ def load_cam_to_pose(cam_to_pose_fn):
 if __name__ == '__main__':
     
     # all the configs are here
-    DRIVE = '2013_05_28_drive_0003_sync'
-    seq = "seq_001"
-    root_dir = './KITTI_to_colmap/KITTI-colmap'
-    data_dir = f'{root_dir}/{DRIVE}/{seq}'
-    semantic_dir = f"./../KITTI/KITTI-360/data_2d_semantics/train/{DRIVE}/"
-    bbox_dir = f"./../KITTI/KITTI-360/data_3d_bboxes/train_full/{DRIVE}.xml"
-    os.makedirs(f"colmap_dense_vis/{DRIVE}/{seq}/semantic_pcd/", exist_ok=True)
+    parser = argparse.ArgumentParser(description='Semantic Reproject')
+    parser.add_argument('--DRIVE', type = str, default = '2013_05_28_drive_0003_sync')
+    parser.add_argument('--seq', type = str, default = 'seq_001')
+    parser.add_argument('--KITTI_dir', type = str, default = './../KITTI/KITTI-360')
+    parser.add_argument('--root_dir', type = str, default = './KITTI_to_colmap/KITTI-colmap')
+    parser.add_argument('--save_dir', type = str, default = './results')
+    args = parser.parse_args()
+    
+    DRIVE = args.DRIVE
+    seq = args.seq
+    semantic_dir = f"{args.KITTI_dir}/data_2d_semantics/train/{DRIVE}/"
+    bbox_dir = f"{args.KITTI_dir}/data_3d_bboxes/train_full/{DRIVE}.xml"
+    os.makedirs(f"{args.save_dir}/{DRIVE}/{seq}/semantic_pcd/", exist_ok=True)
     
     # read data
-    img_names = sorted(os.listdir(data_dir))
-    poses_fn = f'{root_dir}/data_poses/{DRIVE}/poses.txt'
-    intrinsic_fn = f'{root_dir}/calibration/perspective.txt'
-    cam2pose_fn = f'{root_dir}/calibration/calib_cam_to_pose.txt'
+    img_names = sorted(os.listdir(f'{args.root_dir}/{DRIVE}/{seq}'))
+    poses_fn = f'{args.root_dir}/data_poses/{DRIVE}/poses.txt'
+    intrinsic_fn = f'{args.root_dir}/calibration/perspective.txt'
+    cam2pose_fn = f'{args.root_dir}/calibration/calib_cam_to_pose.txt'
     poses = np.loadtxt(poses_fn)
     img_id = poses[:, 0].astype(np.int32)
     poses = poses[:, 1:].reshape(-1, 3, 4)
@@ -229,7 +236,6 @@ if __name__ == '__main__':
     xml_root = lxml.etree.parse(bbox_dir).getroot()
     car_annotations = []
     car_instance_id = 100
-    car_reserve_id = np.zeros((point_cloud_car.shape[0]), dtype=np.uint16)
     for c in tqdm(xml_root, desc=f"Reading KITTI bounding box for cars"):
         if c.find("transform") is None:
             continue
@@ -244,6 +250,7 @@ if __name__ == '__main__':
         car_annotations.append(bbox_3d)
     
     # reserve all static car points
+    car_reserve_id = np.zeros((point_cloud_car.shape[0]), dtype=np.uint16)
     for anno in car_annotations :
         vertices = anno["vertices"]
         if vertices.shape != (8, 3) :
@@ -303,7 +310,6 @@ if __name__ == '__main__':
     xml_root = lxml.etree.parse(bbox_dir).getroot()
     building_annotations = []
     building_instance_id = 10000
-    building_reserve_id = np.zeros((point_cloud_building.shape[0]), dtype=np.uint16)
     for c in tqdm(xml_root, desc=f"Reading KITTI bounding box for buildings"):
         if c.find("transform") is None:
             continue
@@ -316,6 +322,7 @@ if __name__ == '__main__':
         building_annotations.append(bbox_3d)
     
     # reserve all building points
+    building_reserve_id = np.zeros((point_cloud_building.shape[0]), dtype=np.uint16)
     for anno in building_annotations :
         vertices = anno["vertices"]
         if vertices.shape != (8, 3) :
@@ -346,8 +353,8 @@ if __name__ == '__main__':
         bbox_rotated = bbox_relative_to_center.dot(rotation_matrix.T)
 
         # get transformed points within the transformed bbox
-        min_point = bbox_rotated[np.argmin(np.sum(bbox_rotated, axis=1))]
-        max_point = bbox_rotated[np.argmax(np.sum(bbox_rotated, axis=1))]
+        min_point = bbox_rotated[np.argmin(np.sum(bbox_rotated, axis=1))] * 1.6   # slightly expand the bbox to
+        max_point = bbox_rotated[np.argmax(np.sum(bbox_rotated, axis=1))] * 1.6   # endure imprecise reconstruction
         in_box = np.all((rotated_points >= min_point) & (rotated_points <= max_point), axis=1)
         for inb in range(point_cloud_building.shape[0]) :
             if in_box[inb] :
@@ -370,10 +377,10 @@ if __name__ == '__main__':
     semantic_pcd = o3d.geometry.PointCloud()
     semantic_pcd.points = o3d.utility.Vector3dVector(point_cloud_processed)
     semantic_pcd.colors = o3d.utility.Vector3dVector(point_semantic_color / 255)
-    o3d.io.write_point_cloud(f"colmap_dense_vis/{DRIVE}/{seq}/semantic_pcd/{DRIVE}_{seq}.ply", semantic_pcd)
+    o3d.io.write_point_cloud(f"{args.save_dir}/{DRIVE}/{seq}/semantic_pcd/{DRIVE}_{seq}.ply", semantic_pcd)
     
     # save to txt file
-    with open(f"colmap_dense_vis/{DRIVE}/{seq}/semantic_pcd/{DRIVE}_{seq}.txt", "w") as semantic_pcd_txt:
+    with open(f"{args.save_dir}/{DRIVE}/{seq}/semantic_pcd/{DRIVE}_{seq}.txt", "w") as semantic_pcd_txt:
         for i in range(point_cloud_processed.shape[0]) :
             semantic_pcd_txt.write(f"{point_cloud_processed[i][0]} {point_cloud_processed[i][1]} {point_cloud_processed[i][2]} {point_semantic_label[i]}\n")
     
