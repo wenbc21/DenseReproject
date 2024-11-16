@@ -15,10 +15,30 @@ def _get_kitti_360_3d_bbox_annotations(xml_node, instance):
     vertices = _get_kitti_360_annotation_matrix(xml_node.find("vertices"))
     R = transform[:3, :3]
     t = transform[:3, 3]
+    vertices = np.matmul(R, vertices.transpose()).transpose() + t
+    
+    # get bbox axis and rotation matrix
+    z_mean = np.mean(vertices[:, 2])
+    lower_vertices = vertices[vertices[:, 2] < z_mean]
+    upper_vertices = vertices[vertices[:, 2] > z_mean]
+    selected_point = lower_vertices[0]
+    distances = np.linalg.norm(lower_vertices - selected_point, axis=1)
+    
+    index1, index2 = np.argsort(distances)[1:3]
+    axis1 = selected_point - lower_vertices[index1]
+    axis2 = selected_point - lower_vertices[index2]
+    distances_upper = np.linalg.norm(upper_vertices - selected_point, axis=1)
+    axis3 = upper_vertices[np.argmin(distances_upper)] - selected_point
+    
+    edge_vectors = np.array([axis1, axis2, axis3])
+    edge_vectors_normalized = edge_vectors / np.linalg.norm(edge_vectors, axis=1)[:, np.newaxis]
+    rotation_matrix = edge_vectors_normalized.T
+    
     bbox3d = {
         "name": xml_node.tag,
-        "vertices": np.matmul(R, vertices.transpose()).transpose() + t,
-        "instance": instance
+        "vertices": vertices,
+        "instance": instance,
+        "rotation": rotation_matrix
     }
 
     return bbox3d
@@ -118,10 +138,9 @@ if __name__ == '__main__':
     # read point cloud
     pcd = o3d.io.read_point_cloud(f"KITTI_to_colmap/colmap_res/{DRIVE}/{seq}/dense/fused.ply")
     point_cloud = np.asarray(pcd.points)
-    point_color = np.asarray(pcd.colors)
     point_idx = np.arange(point_cloud.shape[0])
     point_label = [[] for _ in range(point_cloud.shape[0])]
-    print("Original point cloud shape:", point_cloud.shape, point_color.shape, point_idx.shape, len(point_label))
+    print("Original point cloud shape:", point_cloud.shape, point_idx.shape, len(point_label))
     
     # intrinsic matrix
     W = 1408
@@ -161,7 +180,6 @@ if __name__ == '__main__':
         depths = points_camera_homogeneous[2, :]
         mask = (depths > depth_min) & (depths < depth_max)
         points_camera_homogeneous = points_camera_homogeneous[:, mask]
-        point_color_clip = point_color[mask]
         depths = depths[mask]
         point_idx_clip = point_idx[mask]
 
@@ -178,14 +196,12 @@ if __name__ == '__main__':
         visible_point = (points_image[0, :] >= 0) & (points_image[0, :] < W) & \
              (points_image[1, :] >= 0) & (points_image[1, :] < H)
         points_image = points_image[:, visible_point]
-        point_color_clip = point_color_clip[visible_point]
         depths = depths[visible_point]
         point_idx_clip = point_idx_clip[visible_point]
 
         # sort depth
         sorted_indices = np.argsort(depths)[::-1]
         points_image_sorted = points_image[:, sorted_indices]
-        point_color_sorted = point_color_clip[sorted_indices]
         point_idx_sorted = point_idx_clip[sorted_indices]
         depth_sorted = depths[sorted_indices]
         
@@ -236,7 +252,7 @@ if __name__ == '__main__':
     xml_root = lxml.etree.parse(bbox_dir).getroot()
     car_annotations = []
     car_instance_id = 100
-    for c in tqdm(xml_root, desc=f"Reading KITTI bounding box for cars"):
+    for c in xml_root :
         if c.find("transform") is None:
             continue
         if c.find("label").text != "car" :
@@ -251,42 +267,24 @@ if __name__ == '__main__':
     
     # reserve all static car points
     car_reserve_id = np.zeros((point_cloud_car.shape[0]), dtype=np.uint16)
-    for anno in car_annotations :
+    for anno in tqdm(car_annotations, desc=f"Handling KITTI bounding box for cars") :
         vertices = anno["vertices"]
         if vertices.shape != (8, 3) :
             continue
         bbox_center = np.mean(vertices, axis=0)
-        
-        # get bbox axis and transform point cloud
-        z_mean = np.mean(vertices[:, 2])
-        lower_vertices = vertices[vertices[:, 2] < z_mean]
-        upper_vertices = vertices[vertices[:, 2] > z_mean]
-        selected_point = lower_vertices[0]
-        distances = np.linalg.norm(lower_vertices - selected_point, axis=1)
-        
-        index1, index2 = np.argsort(distances)[1:3]
-        axis1 = selected_point - lower_vertices[index1]
-        axis2 = selected_point - lower_vertices[index2]
-        distances_upper = np.linalg.norm(upper_vertices - selected_point, axis=1)
-        axis3 = upper_vertices[np.argmin(distances_upper)] - selected_point
-        
-        edge_vectors = np.array([axis1, axis2, axis3])
-        edge_vectors_normalized = edge_vectors / np.linalg.norm(edge_vectors, axis=1)[:, np.newaxis]
-        rotation_matrix = edge_vectors_normalized.T
+        rotation_matrix = anno["rotation"]
         
         points_relative_to_center = point_cloud_car - bbox_center
-        rotated_points = points_relative_to_center.dot(rotation_matrix.T)
-        
+        rotated_points = points_relative_to_center.dot(rotation_matrix)
         bbox_relative_to_center = vertices - bbox_center
-        bbox_rotated = bbox_relative_to_center.dot(rotation_matrix.T)
+        bbox_rotated = bbox_relative_to_center.dot(rotation_matrix)
 
         # get transformed points within the transformed bbox
-        min_point = bbox_rotated[np.argmin(np.sum(bbox_rotated, axis=1))]
-        max_point = bbox_rotated[np.argmax(np.sum(bbox_rotated, axis=1))]
-        in_box = np.all((rotated_points >= min_point) & (rotated_points <= max_point), axis=1)
-        for inb in range(point_cloud_car.shape[0]) :
-            if in_box[inb] :
-                car_reserve_id[inb] = anno["instance"]
+        corner_point = np.abs(bbox_rotated[0])
+        in_box = np.all((rotated_points >= -corner_point) & (rotated_points <= corner_point), axis=1)
+        in_box_index = np.where(in_box)[0]
+        for inb_idx in in_box_index :
+            car_reserve_id[inb_idx] = anno["instance"]
     
     # assign instance id
     for ins in range(len(car_reserve_id)) :
@@ -310,7 +308,7 @@ if __name__ == '__main__':
     xml_root = lxml.etree.parse(bbox_dir).getroot()
     building_annotations = []
     building_instance_id = 10000
-    for c in tqdm(xml_root, desc=f"Reading KITTI bounding box for buildings"):
+    for c in xml_root :
         if c.find("transform") is None:
             continue
         if c.find("label").text != "building" :
@@ -323,42 +321,28 @@ if __name__ == '__main__':
     
     # reserve all building points
     building_reserve_id = np.zeros((point_cloud_building.shape[0]), dtype=np.uint16)
-    for anno in building_annotations :
+    building_res_min_dist = np.zeros((point_cloud_building.shape[0]), dtype=np.float32)
+    for anno in tqdm(building_annotations, desc=f"Reading KITTI bounding box for buildings") :
         vertices = anno["vertices"]
         if vertices.shape != (8, 3) :
             continue
         bbox_center = np.mean(vertices, axis=0)
-        
-        # get bbox axis and transform point cloud
-        z_mean = np.mean(vertices[:, 2])
-        lower_vertices = vertices[vertices[:, 2] < z_mean]
-        upper_vertices = vertices[vertices[:, 2] > z_mean]
-        selected_point = lower_vertices[0]
-        distances = np.linalg.norm(lower_vertices - selected_point, axis=1)
-        
-        index1, index2 = np.argsort(distances)[1:3]
-        axis1 = selected_point - lower_vertices[index1]
-        axis2 = selected_point - lower_vertices[index2]
-        distances_upper = np.linalg.norm(upper_vertices - selected_point, axis=1)
-        axis3 = upper_vertices[np.argmin(distances_upper)] - selected_point
-        
-        edge_vectors = np.array([axis1, axis2, axis3])
-        edge_vectors_normalized = edge_vectors / np.linalg.norm(edge_vectors, axis=1)[:, np.newaxis]
-        rotation_matrix = edge_vectors_normalized.T
+        rotation_matrix = anno["rotation"]
         
         points_relative_to_center = point_cloud_building - bbox_center
-        rotated_points = points_relative_to_center.dot(rotation_matrix.T)
-        
+        rotated_points = points_relative_to_center.dot(rotation_matrix)
         bbox_relative_to_center = vertices - bbox_center
-        bbox_rotated = bbox_relative_to_center.dot(rotation_matrix.T)
+        bbox_rotated = bbox_relative_to_center.dot(rotation_matrix)
 
         # get transformed points within the transformed bbox
-        min_point = bbox_rotated[np.argmin(np.sum(bbox_rotated, axis=1))] * 1.6   # slightly expand the bbox to
-        max_point = bbox_rotated[np.argmax(np.sum(bbox_rotated, axis=1))] * 1.6   # endure imprecise reconstruction
-        in_box = np.all((rotated_points >= min_point) & (rotated_points <= max_point), axis=1)
-        for inb in range(point_cloud_building.shape[0]) :
-            if in_box[inb] :
-                building_reserve_id[inb] = anno["instance"]
+        corner_point = np.abs(bbox_rotated[0]) * 1.5   # expand the bbox to endure imprecise reconstruction
+        in_box = np.all((rotated_points >= -corner_point) & (rotated_points <= corner_point), axis=1)
+        in_box_index = np.where(in_box)[0]
+        for inb_idx in in_box_index :
+            distance_to_boudary = np.min(corner_point - np.abs(rotated_points[inb_idx]))
+            if distance_to_boudary > building_res_min_dist[inb_idx] :
+                building_reserve_id[inb_idx] = anno["instance"]
+                building_res_min_dist[inb_idx] = distance_to_boudary
     
     # assign instance id
     for ins in range(len(building_reserve_id)) :

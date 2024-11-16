@@ -145,14 +145,8 @@ if __name__ == '__main__':
     sem_map_rest, tpd_hf_rest, btu_hf_rest = semantic_propagation_denoise(sem_map_rest, tpd_hf_rest, btu_hf_rest, False)
     
     # semantic merge
-    for x in tqdm(range(sem_map_rest.shape[0]), desc=f"Semantic merge for BEV Map"):
-        for y in range(sem_map_rest.shape[1]) :
-            # merge ground to sidewalk
-            if sem_map_rest[x, y] == 6 :
-                sem_map_rest[x, y] = 8
-            # merge terrain to vegetation
-            if sem_map_rest[x, y] == 22 :
-                sem_map_rest[x, y] = 21
+    sem_map_rest[sem_map_rest == 6] = 8     # merge ground to sidewalk
+    sem_map_rest[sem_map_rest == 22] = 21   # merge terrain to vegetation
     
     # save BEV Map
     cv2.imwrite(f"{save_dir}/bev_map/semantic_vege.png", sem_map_vege.astype(np.uint16))

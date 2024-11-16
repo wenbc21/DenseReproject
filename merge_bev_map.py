@@ -20,7 +20,7 @@ if __name__ == '__main__':
     sequences = [item.path for item in os.scandir(f"{args.save_dir}/{DRIVE}") if item.is_dir()]
     sequences.sort()
     print(sequences)
-    save_dir = f"{args.save_dir}/merged_bev_map/{DRIVE}"
+    save_dir = f"{args.save_dir}/merged_bev_map/{DRIVE}/bev_map"
     os.makedirs(save_dir, exist_ok=True)
     
     # init merged points
@@ -51,11 +51,11 @@ if __name__ == '__main__':
                 sem_val = sem_map_rest[x,y]
                 if sem_val != 0 :
                     point_coor_rest.append([x+x_min, y+y_min])
-                    point_info_rest.append([sem_val, tpd_hf_rest[x,y], btu_hf_rest[x,y]])
+                    point_info_rest.append([sem_val, btu_hf_rest[x,y], tpd_hf_rest[x,y]])
                 sem_val = sem_map_vege[x,y]
                 if sem_val != 0 :
                     point_coor_vege.append([x+x_min, y+y_min])
-                    point_info_vege.append([sem_val, tpd_hf_vege[x,y], btu_hf_vege[x,y]])
+                    point_info_vege.append([sem_val, btu_hf_vege[x,y], tpd_hf_vege[x,y]])
     
     point_coor_vege = np.array(point_coor_vege)
     point_info_vege = np.array(point_info_vege)

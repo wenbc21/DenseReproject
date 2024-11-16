@@ -7,13 +7,13 @@ from scipy.spatial.transform import Rotation as R
 parser = argparse.ArgumentParser(description='colmap_kitti')
 parser.add_argument('--project_path', type=str, default='')
 parser.add_argument('--data_path', type=str, default='')
-parser.add_argument('--drive_seq', type=str, default='3')
+parser.add_argument('--sequence', type=str, default='')
 
 if __name__ == '__main__':
     args = parser.parse_args()
     data_path = args.data_path
     project_path = args.project_path
-    DRIVE = f'2013_05_28_drive_{args.drive_seq.zfill(4)}_sync'
+    DRIVE = args.sequence
 
     pose_fn = f'{data_path}/data_poses/{DRIVE}/poses.txt'
     intrinsic_fn = f'{data_path}/calibration/perspective.txt'
