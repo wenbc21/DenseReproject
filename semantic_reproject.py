@@ -6,7 +6,7 @@ import cv2
 import lxml.etree
 from collections import Counter
 from tqdm import tqdm
-from kitti_labels import gaussiancity_label_color_dict
+from kitti_labels import label_color_dict
 
 
 def _get_kitti_360_3d_bbox_annotations(xml_node, instance):
@@ -91,7 +91,7 @@ if __name__ == '__main__':
     
     # all the configs are here
     parser = argparse.ArgumentParser(description='Semantic Reproject')
-    parser.add_argument('--DRIVE', type = str, default = '2013_05_28_drive_0003_sync')
+    parser.add_argument('--DRIVE', type = str, default = '2013_05_28_drive_0000_sync')
     parser.add_argument('--seq', type = str, default = 'seq_001')
     parser.add_argument('--KITTI_dir', type = str, default = './../KITTI/KITTI-360')
     parser.add_argument('--root_dir', type = str, default = './KITTI_to_colmap/KITTI-colmap')
@@ -136,7 +136,8 @@ if __name__ == '__main__':
         c2w_dict[f'01_{img_name}'] = c2w_01
     
     # read point cloud
-    pcd = o3d.io.read_point_cloud(f"KITTI_to_colmap/colmap_res/{DRIVE}/{seq}/dense/fused.ply")
+    # pcd = o3d.io.read_point_cloud(f"KITTI_to_colmap/colmap_res/{DRIVE}/{seq}/dense/fused.ply")
+    pcd = o3d.io.read_point_cloud(f"KITTI_to_colmap/colmap_dense/{DRIVE}/{seq}/fused.ply")
     point_cloud = np.asarray(pcd.points)
     point_idx = np.arange(point_cloud.shape[0])
     point_label = [[] for _ in range(point_cloud.shape[0])]
@@ -231,8 +232,8 @@ if __name__ == '__main__':
             count = Counter(semantic_list)
             most_common = count.most_common(1)
             # remove points with label we don't want (sky, etc.)
-            if most_common[0][0] in gaussiancity_label_color_dict :
-                semantic_color = gaussiancity_label_color_dict[most_common[0][0]]
+            if most_common[0][0] in label_color_dict :
+                semantic_color = label_color_dict[most_common[0][0]]
                 point_cloud_processed.append(point_cloud[point_ins])
                 point_semantic_color.append(semantic_color)
                 point_semantic_label.append(most_common[0][0])
@@ -316,13 +317,13 @@ if __name__ == '__main__':
         bbox_3d = _get_kitti_360_3d_bbox_annotations(c, building_instance_id)
         if bbox_3d is None:
             continue
-        building_instance_id += 1
+        building_instance_id += 2
         building_annotations.append(bbox_3d)
     
     # reserve all building points
     building_reserve_id = np.zeros((point_cloud_building.shape[0]), dtype=np.uint16)
     building_res_min_dist = np.zeros((point_cloud_building.shape[0]), dtype=np.float32)
-    for anno in tqdm(building_annotations, desc=f"Reading KITTI bounding box for buildings") :
+    for anno in tqdm(building_annotations, desc=f"Handling KITTI bounding box for buildings") :
         vertices = anno["vertices"]
         if vertices.shape != (8, 3) :
             continue

@@ -5,7 +5,7 @@ import argparse
 import cv2
 from tqdm import tqdm
 import json
-from kitti_labels import gaussiancity_label_color_dict, car_palette, building_palette
+from kitti_labels import label_color_dict, class_color_dict, car_palette, building_palette
 
 
 if __name__ == '__main__':
@@ -31,31 +31,33 @@ if __name__ == '__main__':
     
     # read BEV Maps
     for sequence in sequences :
-        sem_map_vege = cv2.imread(f"{sequence}/bev_map/semantic_vege.png", cv2.IMREAD_UNCHANGED)
-        tpd_hf_vege = cv2.imread(f"{sequence}/bev_map/topdown_vege.png", cv2.IMREAD_UNCHANGED)
-        btu_hf_vege = cv2.imread(f"{sequence}/bev_map/bottomup_vege.png", cv2.IMREAD_UNCHANGED)
-        sem_map_rest = cv2.imread(f"{sequence}/bev_map/semantic_rest.png", cv2.IMREAD_UNCHANGED)
-        tpd_hf_rest = cv2.imread(f"{sequence}/bev_map/topdown_rest.png", cv2.IMREAD_UNCHANGED)
-        btu_hf_rest = cv2.imread(f"{sequence}/bev_map/bottomup_rest.png", cv2.IMREAD_UNCHANGED)
+        pts_map_vege = cv2.imread(f"{sequence}/bev_map/VEGT-PTS.png", cv2.IMREAD_UNCHANGED)
+        ins_map_vege = cv2.imread(f"{sequence}/bev_map/VEGT-INS.png", cv2.IMREAD_UNCHANGED)
+        tpd_hf_vege = cv2.imread(f"{sequence}/bev_map/VEGT-TD_HF.png", cv2.IMREAD_UNCHANGED)
+        btu_hf_vege = cv2.imread(f"{sequence}/bev_map/VEGT-BU_HF.png", cv2.IMREAD_UNCHANGED)
+        pts_map_rest = cv2.imread(f"{sequence}/bev_map/REST-PTS.png", cv2.IMREAD_UNCHANGED)
+        ins_map_rest = cv2.imread(f"{sequence}/bev_map/REST-INS.png", cv2.IMREAD_UNCHANGED)
+        tpd_hf_rest = cv2.imread(f"{sequence}/bev_map/REST-TD_HF.png", cv2.IMREAD_UNCHANGED)
+        btu_hf_rest = cv2.imread(f"{sequence}/bev_map/REST-BU_HF.png", cv2.IMREAD_UNCHANGED)
         
         # get world relation position
-        with open(f"{sequence}/bev_map/position_info.json", "r") as position_info_file:
-            position_info = json.load(position_info_file)
-        x_min = int(position_info["x_min"])
-        y_min = int(position_info["y_min"])
-        z_min = int(position_info["z_min"])
+        with open(f"{sequence}/bev_map/metadata.json", "r") as metadata_file:
+            metadata = json.load(metadata_file)
+        x_min = int(metadata["bounds"]["xmin"])
+        y_min = int(metadata["bounds"]["ymin"])
+        z_min = int(metadata["bounds"]["zmin"])
         
-        for x in tqdm(range(sem_map_rest.shape[0]), desc="getting BEV Maps values"):
-            for y in range(sem_map_rest.shape[1]) :
+        for y in tqdm(range(ins_map_rest.shape[0]), desc="getting BEV Maps values"):
+            for x in range(ins_map_rest.shape[1]) :
                 
-                sem_val = sem_map_rest[x,y]
-                if sem_val != 0 :
+                ins_val = ins_map_rest[y,x]
+                if ins_val != 0 :
                     point_coor_rest.append([x+x_min, y+y_min])
-                    point_info_rest.append([sem_val, btu_hf_rest[x,y], tpd_hf_rest[x,y]])
-                sem_val = sem_map_vege[x,y]
-                if sem_val != 0 :
+                    point_info_rest.append([ins_val, btu_hf_rest[y,x], tpd_hf_rest[y,x], pts_map_rest[y,x]])
+                ins_val = ins_map_vege[y,x]
+                if ins_val != 0 :
                     point_coor_vege.append([x+x_min, y+y_min])
-                    point_info_vege.append([sem_val, btu_hf_vege[x,y], tpd_hf_vege[x,y]])
+                    point_info_vege.append([ins_val, btu_hf_vege[y,x], tpd_hf_vege[y,x], pts_map_vege[y,x]])
     
     point_coor_vege = np.array(point_coor_vege)
     point_info_vege = np.array(point_info_vege)
@@ -67,71 +69,71 @@ if __name__ == '__main__':
     z_min, z_max = 1000, 3000 # prior knowledge from KITTI, no normal points outside this (relaxed) range
 
     # BEV Map initialize for vegetation
-    tpd_hf_vege = np.zeros((int(x_max - x_min + 1), int(y_max - y_min + 1)), dtype=np.int16)
+    tpd_hf_vege = np.zeros((int(y_max - y_min + 1), int(x_max - x_min + 1)), dtype=np.uint16)
     btu_hf_vege = (z_max - z_min) * np.ones_like(tpd_hf_vege)
-    sem_map_vege = np.zeros((int(x_max - x_min + 1), int(y_max - y_min + 1)), dtype=np.int16)
+    sem_map_vege = np.zeros((int(y_max - y_min + 1), int(x_max - x_min + 1)), dtype=np.uint16)
+    pts_map_vege = np.zeros((int(y_max - y_min + 1), int(x_max - x_min + 1)), dtype=np.uint8)
     
     # BEV Map initialize for other stuff
-    tpd_hf_rest = np.zeros((int(x_max - x_min + 1), int(y_max - y_min + 1)), dtype=np.int16)
+    tpd_hf_rest = np.zeros((int(y_max - y_min + 1), int(x_max - x_min + 1)), dtype=np.uint16)
     btu_hf_rest = (z_max - z_min) * np.ones_like(tpd_hf_rest)
-    sem_map_rest = np.zeros((int(x_max - x_min + 1), int(y_max - y_min + 1)), dtype=np.int16)
+    sem_map_rest = np.zeros((int(y_max - y_min + 1), int(x_max - x_min + 1)), dtype=np.uint16)
+    pts_map_rest = np.zeros((int(y_max - y_min + 1), int(x_max - x_min + 1)), dtype=np.uint8)
     
     # project vege points to ground
     for i in tqdm(range(point_coor_vege.shape[0]), desc=f"Projecting Vege points to BEV Map"):
         x, y = point_coor_vege[i]
         x -= x_min
         y -= y_min
-        label, btu_val, tpd_val = point_info_vege[i]
+        label, btu_val, tpd_val, pts_val = point_info_vege[i]
         
-        sem_map_vege[x, y] = label
-        tpd_hf_vege[x, y] = tpd_val
-        btu_hf_vege[x, y] = btu_val
+        sem_map_vege[y, x] = label
+        tpd_hf_vege[y, x] = tpd_val
+        btu_hf_vege[y, x] = btu_val
+        pts_map_vege[y, x] = pts_val
         
     # project other points to ground
     for i in tqdm(range(point_coor_rest.shape[0]), desc=f"Projecting Other points to BEV Map"):
         x, y = point_coor_rest[i]
         x -= x_min
         y -= y_min
-        label, btu_val, tpd_val = point_info_rest[i]
+        label, btu_val, tpd_val, pts_val = point_info_rest[i]
         
-        sem_map_rest[x, y] = label
-        tpd_hf_rest[x, y] = tpd_val
-        btu_hf_rest[x, y] = btu_val
+        sem_map_rest[y, x] = label
+        tpd_hf_rest[y, x] = tpd_val
+        btu_hf_rest[y, x] = btu_val
+        pts_map_rest[y, x] = pts_val
     
-    # save BEV Map
-    cv2.imwrite(f"{save_dir}/semantic_vege.png", sem_map_vege.astype(np.uint16))
-    cv2.imwrite(f"{save_dir}/topdown_vege.png", tpd_hf_vege.astype(np.uint16))
-    cv2.imwrite(f"{save_dir}/bottomup_vege.png", btu_hf_vege.astype(np.uint16))
-    cv2.imwrite(f"{save_dir}/semantic_rest.png", sem_map_rest.astype(np.uint16))
-    cv2.imwrite(f"{save_dir}/topdown_rest.png", tpd_hf_rest.astype(np.uint16))
-    cv2.imwrite(f"{save_dir}/bottomup_rest.png", btu_hf_rest.astype(np.uint16))
+    sem_map_vege_rgb = np.zeros((int(y_max - y_min + 1), int(x_max - x_min + 1), 3), dtype=np.uint8)
+    sem_map_rest_rgb = np.zeros((int(y_max - y_min + 1), int(x_max - x_min + 1), 3), dtype=np.uint8)
     
-    # save BEV Map for visualize and debug (won't be used)
-    tpd_hf_vege_vis = tpd_hf_vege / (z_max - z_min) * 255
-    btu_hf_vege_vis = btu_hf_vege / (z_max - z_min) * 255
-    tpd_hf_rest_vis = tpd_hf_rest / (z_max - z_min) * 255
-    btu_hf_rest_vis = btu_hf_rest / (z_max - z_min) * 255
-    sem_map_vege_rgb = np.zeros((int(x_max - x_min + 1), int(y_max - y_min + 1), 3), dtype=np.uint8)
-    sem_map_rest_rgb = np.zeros((int(x_max - x_min + 1), int(y_max - y_min + 1), 3), dtype=np.uint8)
     for x in range(sem_map_vege_rgb.shape[0]) :
         for y in range(sem_map_vege_rgb.shape[1]) :
             if sem_map_vege[x,y] != 0 :
-                sem_map_vege_rgb[x,y] = gaussiancity_label_color_dict[sem_map_vege[x,y]]
+                sem_map_vege_rgb[x,y] = class_color_dict[sem_map_vege[x,y]]
             if sem_map_rest[x,y] != 0 :
-                sem_label = sem_map_rest[x,y]
-                if sem_label < 100 :
-                    sem_map_rest_rgb[x,y] = gaussiancity_label_color_dict[sem_label]
-                elif 100 <= sem_label < 10000 :
-                    sem_map_rest_rgb[x,y] = car_palette(sem_label) # car
-                elif 10000 <= sem_label < 20000 :
-                    sem_map_rest_rgb[x,y] = building_palette(sem_label) # building
-    cv2.imwrite(f"{save_dir}/semantic_vege_vis.png", sem_map_vege_rgb[:, :, ::-1].astype(np.uint8))
-    cv2.imwrite(f"{save_dir}/topdown_vege_vis.png", tpd_hf_vege_vis.astype(np.uint8))
-    cv2.imwrite(f"{save_dir}/bottomup_vege_vis.png", btu_hf_vege_vis.astype(np.uint8))
-    cv2.imwrite(f"{save_dir}/semantic_rest_vis.png", sem_map_rest_rgb[:, :, ::-1].astype(np.uint8))
-    cv2.imwrite(f"{save_dir}/topdown_rest_vis.png", tpd_hf_rest_vis.astype(np.uint8))
-    cv2.imwrite(f"{save_dir}/bottomup_rest_vis.png", btu_hf_rest_vis.astype(np.uint8))
+                sem_class = sem_map_rest[x,y]
+                if sem_class < 100 :
+                    sem_map_rest_rgb[x,y] = class_color_dict[sem_class]
+                elif 100 <= sem_class < 10000 :
+                    sem_map_rest_rgb[x,y] = car_palette(sem_class) # car
+                elif 10000 <= sem_class < 20000 :
+                    sem_map_rest_rgb[x,y] = building_palette(sem_class) # building
+    
+    # save BEV Map
+    print("saving BEV Maps...")
+    cv2.imwrite(f"{save_dir}/VEGT-SEG.png", sem_map_vege_rgb[:, :, ::-1].astype(np.uint8))
+    cv2.imwrite(f"{save_dir}/VEGT-PTS.png", pts_map_vege)
+    cv2.imwrite(f"{save_dir}/VEGT-INS.png", sem_map_vege.astype(np.uint16))
+    cv2.imwrite(f"{save_dir}/VEGT-TD_HF.png", tpd_hf_vege.astype(np.uint16))
+    cv2.imwrite(f"{save_dir}/VEGT-BU_HF.png", btu_hf_vege.astype(np.uint16))
+    cv2.imwrite(f"{save_dir}/REST-SEG.png", sem_map_rest_rgb[:, :, ::-1].astype(np.uint8))
+    cv2.imwrite(f"{save_dir}/REST-PTS.png", pts_map_rest)
+    cv2.imwrite(f"{save_dir}/REST-INS.png", sem_map_rest.astype(np.uint16))
+    cv2.imwrite(f"{save_dir}/REST-TD_HF.png", tpd_hf_rest.astype(np.uint16))
+    cv2.imwrite(f"{save_dir}/REST-BU_HF.png", btu_hf_rest.astype(np.uint16))
     
     # save local position to restore BEV Map to world relative position
-    with open(f"{save_dir}/position_info.json", "w") as position_info_file:
-        json.dump({"x_min":int(x_min), "y_min":int(y_min), "z_min":int(z_min)}, position_info_file, indent=4)
+    with open(f"{save_dir}/metadata.json", "w") as metadata_file:
+        json.dump({"bounds":{"xmin":int(x_min), "ymin":int(y_min), "zmin":int(z_min)}}, metadata_file, indent=4)
+    

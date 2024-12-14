@@ -5,7 +5,7 @@ import argparse
 import cv2
 from tqdm import tqdm
 import json
-from kitti_labels import gaussiancity_label_color_dict, car_palette, building_palette
+from kitti_labels import label_color_dict, class_color_dict, car_palette, building_palette
 
 def get_points_from_projections(sem_map, tpd_hf, btu_hf, is_vege) :
     points = []
@@ -21,7 +21,7 @@ def get_points_from_projections(sem_map, tpd_hf, btu_hf, is_vege) :
                 tpd_val = tpd_hf[x, y]
                 
                 if sem_val < 100 :
-                    sem_rgb = gaussiancity_label_color_dict[sem_val]
+                    sem_rgb = class_color_dict[sem_val]
                 elif 100 <= sem_val < 10000 :
                     sem_rgb = car_palette(sem_val) # car
                 elif 10000 <= sem_val < 20000 :
@@ -29,22 +29,22 @@ def get_points_from_projections(sem_map, tpd_hf, btu_hf, is_vege) :
                 
                 # add the top point
                 if k > tpd_val - 1 :
-                    points.append([x, y, k])
+                    points.append([y, x, k])
                     colors.append(sem_rgb)
                     continue
                 # only for vegetation, add the lowest point
                 if is_vege and k == btu_hf[x][y] :
-                    points.append([x, y, k])
+                    points.append([y, x, k])
                     colors.append(sem_rgb)
                     continue
                 # if not all nearby position share the same height, then add
                 if np.count_nonzero(tpd_hf[x-1:x+1][y-1:y+1] == tpd_val) != 9 :
-                    points.append([x, y, k])
+                    points.append([y, x, k])
                     colors.append(sem_rgb)
                     continue
                 # if not all nearby position share the same semantic, then add
                 if np.count_nonzero(sem_map[x-1:x+1][y-1:y+1] == sem_val) != 9 :
-                    points.append([x, y, k])
+                    points.append([y, x, k])
                     colors.append(sem_rgb)
     return np.array(points), np.array(colors)
 
@@ -64,19 +64,19 @@ if __name__ == '__main__':
     os.makedirs(f"{save_dir}/extruded_pcd", exist_ok=True)
     
     # read BEV Map
-    sem_map_vege = cv2.imread(f"{save_dir}/bev_map/semantic_vege.png", cv2.IMREAD_UNCHANGED)
-    tpd_hf_vege = cv2.imread(f"{save_dir}/bev_map/topdown_vege.png", cv2.IMREAD_UNCHANGED)
-    btu_hf_vege = cv2.imread(f"{save_dir}/bev_map/bottomup_vege.png", cv2.IMREAD_UNCHANGED)
-    sem_map_rest = cv2.imread(f"{save_dir}/bev_map/semantic_rest.png", cv2.IMREAD_UNCHANGED)
-    tpd_hf_rest = cv2.imread(f"{save_dir}/bev_map/topdown_rest.png", cv2.IMREAD_UNCHANGED)
-    btu_hf_rest = cv2.imread(f"{save_dir}/bev_map/bottomup_rest.png", cv2.IMREAD_UNCHANGED)
+    sem_map_vege = cv2.imread(f"{save_dir}/bev_map/VEGT-INS.png", cv2.IMREAD_UNCHANGED)
+    tpd_hf_vege = cv2.imread(f"{save_dir}/bev_map/VEGT-TD_HF.png", cv2.IMREAD_UNCHANGED)
+    btu_hf_vege = cv2.imread(f"{save_dir}/bev_map/VEGT-BU_HF.png", cv2.IMREAD_UNCHANGED)
+    sem_map_rest = cv2.imread(f"{save_dir}/bev_map/REST-INS.png", cv2.IMREAD_UNCHANGED)
+    tpd_hf_rest = cv2.imread(f"{save_dir}/bev_map/REST-TD_HF.png", cv2.IMREAD_UNCHANGED)
+    btu_hf_rest = cv2.imread(f"{save_dir}/bev_map/REST-BU_HF.png", cv2.IMREAD_UNCHANGED)
     
     # get world relation position
-    with open(f"{save_dir}/bev_map/position_info.json", "r") as position_info_file:
-        position_info = json.load(position_info_file)
-    x_min = position_info["x_min"]
-    y_min = position_info["y_min"]
-    z_min = position_info["z_min"]
+    with open(f"{save_dir}/bev_map/metadata.json", "r") as metadata_file:
+        metadata = json.load(metadata_file)
+    x_min = metadata["bounds"]["xmin"]
+    y_min = metadata["bounds"]["ymin"]
+    z_min = metadata["bounds"]["zmin"]
     
     # extrude vegetation points from BEV Map
     points_vege, colors_vege = get_points_from_projections(

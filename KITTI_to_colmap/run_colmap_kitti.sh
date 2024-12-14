@@ -2,18 +2,18 @@
 # SEQUENCE: pre-processed sequence id
 # PROJECT_ROOT: root directory of the colmap project to save the results
 # ROOT_DIR: root directory of the dataset (pre-processed)
-SEQUENCE='2013_05_28_drive_0006_sync'
+SEQUENCE='2013_05_28_drive_0009_sync'
 SEQUENCE_CLIP='seq_001'
 PROJECT_ROOT='/mnt/slurm_home/bcwen/DenseSemantic/KITTI_to_colmap/colmap_res'
 ROOT_DIR='/mnt/slurm_home/bcwen/DenseSemantic/KITTI_to_colmap/KITTI-colmap'
 PROJECT_PATH=${PROJECT_ROOT}/${SEQUENCE}/${SEQUENCE_CLIP}
 
-# drive_0000: seq_001 - seq_022
+# drive_0000: seq_001 - seq_022 # done
 # drive_0002: seq_009 - seq_038
 # drive_0003: seq_001 - seq_003 # done
-# drive_0004: seq_001 - seq_023
+# drive_0004: seq_001 - seq_023 # done
 # drive_0005: seq_001 - seq_013 # done
-# drive_0006: seq_001 - seq_019
+# drive_0006: seq_001 - seq_019 # done
 # drive_0007: seq_001 - seq_010 # done
 # drive_0009: seq_001 - seq_028
 # drive_0010: seq_001 - seq_006 # done

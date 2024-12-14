@@ -10,6 +10,7 @@ python KITTI_to_colmap/preprocess_kitti.py --drive_seq 3
 ```
 sh KITTI_to_colmap/run_colmap_kitti.sh
 ```
+
 3. Reproject sematic label to make a new point cloud [semantic_reproject](semantic_reproject.py) (30 mins)
 ```
 srun -p rtx3090_slab -n 1 --job-name=gaussiancity --gres=gpu:1 --kill-on-bad-exit=1 python semantic_reproject.py --DRIVE 2013_05_28_drive_0003_sync --seq seq_001
@@ -28,5 +29,5 @@ srun -p rtx3090_slab -n 1 --job-name=gaussiancity --gres=gpu:1 --kill-on-bad-exi
 ```
 6. Merge BEV Maps from each sequence to a full BEV Map [merge_bev_map](merge_bev_map.py) (3 mins)
 ```
-python python pointcloud_render.py --DRIVE 2013_05_28_drive_0003_sync
+python pointcloud_render.py --DRIVE 2013_05_28_drive_0003_sync
 ```

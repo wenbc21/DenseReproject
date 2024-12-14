@@ -6,8 +6,16 @@ import cv2
 from tqdm import tqdm
 from collections import Counter
 import json
-from kitti_labels import gaussiancity_label_color_dict, car_palette, building_palette
+from kitti_labels import label_color_dict, semantic_classes_dict, class_color_dict, car_palette, building_palette
 
+
+def _get_point_map(map_size, stride):
+    pts_map = np.zeros(map_size, dtype=np.uint8)
+    ys = np.arange(0, map_size[0], stride)
+    xs = np.arange(0, map_size[1], stride)
+    coords = np.stack(np.meshgrid(ys, xs), axis=-1).reshape(-1, 2)
+    pts_map[coords[:, 0], coords[:, 1]] = 1
+    return pts_map
 
 # something like Label Propagation
 def semantic_propagation_denoise(sem_map, tpd_hf, btu_hf, is_vege) :
@@ -99,14 +107,14 @@ if __name__ == '__main__':
     z_min, z_max = 1000, 3000 # prior knowledge from KITTI, no normal points outside this (relaxed) range
 
     # BEV Map initialize for vegetation
-    tpd_hf_vege = np.zeros((int(x_max - x_min + 1), int(y_max - y_min + 1)), dtype=np.int16)
+    tpd_hf_vege = np.zeros((int(y_max - y_min + 1), int(x_max - x_min + 1)), dtype=np.uint16)
     btu_hf_vege = (z_max - z_min) * np.ones_like(tpd_hf_vege)
-    sem_map_vege = np.zeros((int(x_max - x_min + 1), int(y_max - y_min + 1)), dtype=np.int16)
+    sem_map_vege = np.zeros((int(y_max - y_min + 1), int(x_max - x_min + 1)), dtype=np.uint16)
     
     # BEV Map initialize for other stuff
-    tpd_hf_rest = np.zeros((int(x_max - x_min + 1), int(y_max - y_min + 1)), dtype=np.int16)
+    tpd_hf_rest = np.zeros((int(y_max - y_min + 1), int(x_max - x_min + 1)), dtype=np.uint16)
     btu_hf_rest = (z_max - z_min) * np.ones_like(tpd_hf_rest)
-    sem_map_rest = np.zeros((int(x_max - x_min + 1), int(y_max - y_min + 1)), dtype=np.int16)
+    sem_map_rest = np.zeros((int(y_max - y_min + 1), int(x_max - x_min + 1)), dtype=np.uint16)
     
     # height sort to take the highest point's semantic as label
     depths = point_cloud[:, 2]
@@ -126,63 +134,72 @@ if __name__ == '__main__':
         
         # make BEV Map for vegetation
         if semantic_label == 21 :
-            if tpd_hf_vege[_x, _y] < _z:
-                tpd_hf_vege[_x, _y] = _z
-            if btu_hf_vege[_x, _y] > _z:
-                btu_hf_vege[_x, _y] = _z
-            sem_map_vege[_x, _y] = semantic_label
+            if tpd_hf_vege[_y, _x] < _z:
+                tpd_hf_vege[_y, _x] = _z
+            if btu_hf_vege[_y, _x] > _z:
+                btu_hf_vege[_y, _x] = _z
+            sem_map_vege[_y, _x] = semantic_label
 
         # make BEV Map for others
         else :
-            if tpd_hf_rest[_x, _y] < _z:
-                tpd_hf_rest[_x, _y] = _z
-            if btu_hf_rest[_x, _y] > _z:
-                btu_hf_rest[_x, _y] = _z
-            sem_map_rest[_x, _y] = semantic_label
+            if tpd_hf_rest[_y, _x] < _z:
+                tpd_hf_rest[_y, _x] = _z
+            if btu_hf_rest[_y, _x] > _z:
+                btu_hf_rest[_y, _x] = _z
+            sem_map_rest[_y, _x] = semantic_label
     
     # denoise
     sem_map_vege, tpd_hf_vege, btu_hf_vege = semantic_propagation_denoise(sem_map_vege, tpd_hf_vege, btu_hf_vege, True)
     sem_map_rest, tpd_hf_rest, btu_hf_rest = semantic_propagation_denoise(sem_map_rest, tpd_hf_rest, btu_hf_rest, False)
     
-    # semantic merge
-    sem_map_rest[sem_map_rest == 6] = 8     # merge ground to sidewalk
-    sem_map_rest[sem_map_rest == 22] = 21   # merge terrain to vegetation
+    # semantic to classes
+    for sem_type in semantic_classes_dict :
+        sem_map_rest[sem_map_rest == sem_type] = semantic_classes_dict[sem_type]
+        sem_map_vege[sem_map_vege == sem_type] = semantic_classes_dict[sem_type]
     
-    # save BEV Map
-    cv2.imwrite(f"{save_dir}/bev_map/semantic_vege.png", sem_map_vege.astype(np.uint16))
-    cv2.imwrite(f"{save_dir}/bev_map/topdown_vege.png", tpd_hf_vege.astype(np.uint16))
-    cv2.imwrite(f"{save_dir}/bev_map/bottomup_vege.png", btu_hf_vege.astype(np.uint16))
-    cv2.imwrite(f"{save_dir}/bev_map/semantic_rest.png", sem_map_rest.astype(np.uint16))
-    cv2.imwrite(f"{save_dir}/bev_map/topdown_rest.png", tpd_hf_rest.astype(np.uint16))
-    cv2.imwrite(f"{save_dir}/bev_map/bottomup_rest.png", btu_hf_rest.astype(np.uint16))
+    # classes to color
+    sem_map_vege_rgb = np.zeros((int(y_max - y_min + 1), int(x_max - x_min + 1), 3), dtype=np.uint8)
+    sem_map_rest_rgb = np.zeros((int(y_max - y_min + 1), int(x_max - x_min + 1), 3), dtype=np.uint8)
     
-    # save BEV Map for visualize and debug (won't be used)
-    tpd_hf_vege_vis = tpd_hf_vege / (z_max - z_min) * 255
-    btu_hf_vege_vis = btu_hf_vege / (z_max - z_min) * 255
-    tpd_hf_rest_vis = tpd_hf_rest / (z_max - z_min) * 255
-    btu_hf_rest_vis = btu_hf_rest / (z_max - z_min) * 255
-    sem_map_vege_rgb = np.zeros((int(x_max - x_min + 1), int(y_max - y_min + 1), 3), dtype=np.uint8)
-    sem_map_rest_rgb = np.zeros((int(x_max - x_min + 1), int(y_max - y_min + 1), 3), dtype=np.uint8)
     for x in range(sem_map_vege_rgb.shape[0]) :
         for y in range(sem_map_vege_rgb.shape[1]) :
             if sem_map_vege[x, y] != 0 :
-                sem_map_vege_rgb[x, y] = gaussiancity_label_color_dict[sem_map_vege[x, y]]
+                sem_map_vege_rgb[x, y] = class_color_dict[sem_map_vege[x, y]]
             if sem_map_rest[x, y] != 0 :
-                sem_label = sem_map_rest[x, y]
-                if sem_label < 100 :
-                    sem_map_rest_rgb[x, y] = gaussiancity_label_color_dict[sem_label]
-                elif 100 <= sem_label < 10000 :
-                    sem_map_rest_rgb[x, y] = car_palette(sem_label) # car
-                elif 10000 <= sem_label < 20000 :
-                    sem_map_rest_rgb[x, y] = building_palette(sem_label) # building
-    cv2.imwrite(f"{save_dir}/bev_map/semantic_vege_vis.png", sem_map_vege_rgb[:, :, ::-1].astype(np.uint8))
-    cv2.imwrite(f"{save_dir}/bev_map/topdown_vege_vis.png", tpd_hf_vege_vis.astype(np.uint8))
-    cv2.imwrite(f"{save_dir}/bev_map/bottomup_vege_vis.png", btu_hf_vege_vis.astype(np.uint8))
-    cv2.imwrite(f"{save_dir}/bev_map/semantic_rest_vis.png", sem_map_rest_rgb[:, :, ::-1].astype(np.uint8))
-    cv2.imwrite(f"{save_dir}/bev_map/topdown_rest_vis.png", tpd_hf_rest_vis.astype(np.uint8))
-    cv2.imwrite(f"{save_dir}/bev_map/bottomup_rest_vis.png", btu_hf_rest_vis.astype(np.uint8))
+                sem_class = sem_map_rest[x, y]
+                if sem_class < 100 :
+                    sem_map_rest_rgb[x, y] = class_color_dict[sem_class]
+                elif 100 <= sem_class < 10000 :
+                    sem_map_rest_rgb[x, y] = car_palette(sem_class) # car
+                elif 10000 <= sem_class < 20000 :
+                    sem_map_rest_rgb[x, y] = building_palette(sem_class) # building
+    
+    # classes to scale
+    pts_map_vege = np.zeros(sem_map_vege.shape, dtype=np.uint8)
+    pts_map_vege[sem_map_vege == 3] = 1
+    
+    pts_map_rest = np.zeros(sem_map_rest.shape, dtype=np.uint8)
+    pts_map_rest[sem_map_rest != 0] = 1
+    for lab_2 in [1, 5] :
+        mask = sem_map_rest == lab_2
+        pts_map_rest[mask] = 0
+        pt_map = _get_point_map(pts_map_rest.shape, 2)
+        pt_map[~mask] = 0
+        pts_map_rest += pt_map
+    
+    # save BEV Map
+    print("saving BEV Maps...")
+    cv2.imwrite(f"{save_dir}/bev_map/VEGT-PTS.png", pts_map_vege * 255)
+    cv2.imwrite(f"{save_dir}/bev_map/VEGT-INS.png", sem_map_vege)
+    cv2.imwrite(f"{save_dir}/bev_map/VEGT-SEG.png", sem_map_vege_rgb[:, :, ::-1])
+    cv2.imwrite(f"{save_dir}/bev_map/VEGT-TD_HF.png", tpd_hf_vege)
+    cv2.imwrite(f"{save_dir}/bev_map/VEGT-BU_HF.png", btu_hf_vege)
+    cv2.imwrite(f"{save_dir}/bev_map/REST-PTS.png", pts_map_rest * 255)
+    cv2.imwrite(f"{save_dir}/bev_map/REST-INS.png", sem_map_rest)
+    cv2.imwrite(f"{save_dir}/bev_map/REST-SEG.png", sem_map_rest_rgb[:, :, ::-1])
+    cv2.imwrite(f"{save_dir}/bev_map/REST-TD_HF.png", tpd_hf_rest)
+    cv2.imwrite(f"{save_dir}/bev_map/REST-BU_HF.png", btu_hf_rest)
     
     # save local position to restore BEV Map to world relative position
-    with open(f"{save_dir}/bev_map/position_info.json", "w") as position_info_file:
-        json.dump({"x_min":x_min, "y_min":y_min, "z_min":z_min}, position_info_file, indent=4)
-    
+    with open(f"{save_dir}/bev_map/metadata.json", "w") as metadata_file:
+        json.dump({"bounds":{"xmin":x_min, "ymin":y_min, "zmin":z_min}}, metadata_file, indent=4)

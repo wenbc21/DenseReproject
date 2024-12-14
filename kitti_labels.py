@@ -5,10 +5,11 @@
 
 from collections import namedtuple
 
-gaussiancity_label_color_dict = {
+label_color_dict = {
      6 : ( 81,  0, 81), # 'ground'
      7 : (128, 64,128), # 'road'          
      8 : (244, 35,232), # 'sidewalk'      
+     9 : (250,170,160), # 'parking'
     11 : ( 70, 70, 70), # 'building'      
     12 : (102,102,156), # 'wall'          
     # 13 : (190,153,153), # 'fence'         
@@ -21,7 +22,7 @@ gaussiancity_label_color_dict = {
     # 24 : (220, 20, 60), # 'person'        
     # 25 : (255,  0,  0), # 'rider'         
     26 : (  0,  0,142), # 'car'           
-    27 : (  0,  0, 70), # 'truck'         
+    # 27 : (  0,  0, 70), # 'truck'         
     # 28 : (  0, 60,100), # 'bus'           
     # 31 : (  0, 80,100), # 'train'         
     # 32 : (  0,  0,230), # 'motorcycle'    
@@ -30,6 +31,43 @@ gaussiancity_label_color_dict = {
     # 35 : (190,153,153), # 'gate'          
     # 37 : (153,153,153), # 'smallpole'     
 }
+
+KITTI_CLASSES = {
+    "NULL": 0,
+    "ROAD": 1,
+    "CAR": 2,
+    "VEGETATION": 3,
+    "SKY": 4,
+    "ZONE": 5,
+    "WALL": 6,
+    "GARAGE": 7,
+    "BLDG_FACADE": 8,
+    "BLDG_ROOF": 9,
+}
+
+semantic_classes_dict = {
+     0 : KITTI_CLASSES["NULL"],          # 'null'
+     6 : KITTI_CLASSES["ZONE"],          # 'ground'    
+     7 : KITTI_CLASSES["ROAD"],          # 'road'      
+     8 : KITTI_CLASSES["ZONE"],          # 'sidewalk'  
+     9 : KITTI_CLASSES["ZONE"],          # 'parking'   
+    11 : KITTI_CLASSES["BLDG_FACADE"],   # 'building'  
+    12 : KITTI_CLASSES["WALL"],          # 'wall'      
+    21 : KITTI_CLASSES["VEGETATION"],    # 'vegetation'
+    22 : KITTI_CLASSES["VEGETATION"],    # 'terrain'   
+    26 : KITTI_CLASSES["CAR"],           # 'car'       
+    34 : KITTI_CLASSES["GARAGE"],        # 'garage'    
+}
+
+class_color_dict = {
+    KITTI_CLASSES["NULL"]       : (  0,  0,  0) ,
+    KITTI_CLASSES["ROAD"]       : (128, 64,128) ,
+    KITTI_CLASSES["VEGETATION"] : (107,142, 35) ,
+    KITTI_CLASSES["ZONE"]       : (244, 35,232) ,
+    KITTI_CLASSES["WALL"]       : (102,102,156) ,
+    KITTI_CLASSES["GARAGE"]     : ( 64,128,128) ,
+}
+
 
 import random
 random.seed(21)
@@ -46,34 +84,6 @@ def car_palette(index) :
 def building_palette(index) :
     index = index % MAX_N_INSTANCES
     return (base_building_color[0]+color_range[index], base_building_color[1]+color_range[index], base_building_color[2]+color_range[index])
-
-
-# HAOZHE Classes
-CLASSES = {
-    # autonomousvision/kitti360Scripts/kitti360scripts/helpers/labels.py
-    "KITTI_360": {
-        "NULL": 0,
-        "ROAD": 1,
-        "BLDG_FACADE": 2,
-        "CAR": 3,
-        "VEGETATION": 4,
-        "SKY": 5,
-        "ZONE": 6,
-        "BLDG_ROOF": 7,
-    },
-}
-KITTI_CLASSES = {
-    "road": CLASSES["KITTI_360"]["ROAD"],
-    "driveway": CLASSES["KITTI_360"]["ROAD"],
-    "building": CLASSES["KITTI_360"]["BLDG_FACADE"],
-    "car": CLASSES["KITTI_360"]["CAR"],
-    "truck": CLASSES["KITTI_360"]["CAR"],
-    "vegetation": CLASSES["KITTI_360"]["VEGETATION"],
-    "sky": CLASSES["KITTI_360"]["SKY"],
-    "sidewalk": CLASSES["KITTI_360"]["ZONE"],
-    "ground": CLASSES["KITTI_360"]["ZONE"],
-}
-
 
 
 #--------------------------------------------------------------------------------
