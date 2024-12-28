@@ -244,6 +244,10 @@ if __name__ == '__main__':
     point_semantic_label = np.array(point_semantic_label, dtype=np.uint16)
     print("Processed point cloud shape:", point_cloud_processed.shape, point_semantic_color.shape, point_semantic_label.shape)
     
+    if point_cloud_processed.size == 0 :
+        print("No corresponding semantic image! ")
+        exit()
+    
     # extract all car points
     car_points = (point_semantic_label == 26)
     car_point_indices = np.where(car_points)[0]

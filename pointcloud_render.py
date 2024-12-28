@@ -46,7 +46,7 @@ if __name__ == '__main__':
     DRIVE = args.DRIVE
     seq = args.seq
     save_dir = f"{args.save_dir}/{DRIVE}/{seq}"
-    os.makedirs(f"{save_dir}/extruded_vis", exist_ok=True)
+    os.makedirs(f"{save_dir}/pointcloud_vis", exist_ok=True)
     
     # read data
     img_names = sorted(os.listdir(f'{args.root_dir}/{DRIVE}/{seq}'))
@@ -144,7 +144,6 @@ if __name__ == '__main__':
         point_color_sorted = point_color_l[sorted_indices]
         
         # rasterize 
-        # TODO: accelerate this loop
         image = np.full((H, W, 3), 255, dtype=np.uint8)
         for i in range(points_image_sorted.shape[1]):
             point = points_image_sorted[:, i]
@@ -153,4 +152,4 @@ if __name__ == '__main__':
             image[y-2:y+2,x-2:x+2] = (int(color[2]), int(color[1]), int(color[0]))
 
         # save rendered image
-        cv2.imwrite(f"{save_dir}/extruded_vis/{img_ins}", image)
+        cv2.imwrite(f"{save_dir}/pointcloud_vis/{img_ins}", image)

@@ -29,5 +29,5 @@ srun -p rtx3090_slab -n 1 --job-name=gaussiancity --gres=gpu:1 --kill-on-bad-exi
 ```
 6. Merge BEV Maps from each sequence to a full BEV Map [merge_bev_map](merge_bev_map.py) (3 mins)
 ```
-python pointcloud_render.py --DRIVE 2013_05_28_drive_0003_sync
+python merge_bev_map.py --DRIVE 2013_05_28_drive_0003_sync
 ```
